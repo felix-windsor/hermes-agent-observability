@@ -1,4 +1,4 @@
-"""Regenerate the local demo dataset."""
+"""Regenerate the local sample dataset."""
 from __future__ import annotations
 
 from collector.store import seed_sample_data

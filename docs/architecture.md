@@ -35,7 +35,7 @@ GET /api/events?range=24h&limit=30
 GET /api/traces/{trace_id}
 GET /api/export?range=24h&limit=1000
 GET /api/export/download?range=24h&limit=1000
-POST /api/demo/reset
+POST /api/sample/reset
 ```
 
 `overview`、`events`、`export` 和 `export/download` 支持 `scenario` 参数，用来切换样例故事：
@@ -83,4 +83,4 @@ Dashboard 是静态页面，不需要前端构建。它使用浏览器原生 API
 felix-windsor/hermes-agent:agent/local-observability-dashboard
 ```
 
-那个分支展示如何把 collector 接入真实 Agent 运行时；这个独立仓库是作品集/demo 层。
+那个分支展示如何把 collector 接入真实 Agent 运行时；这个独立仓库用于验证事件模型、分析 API 和本地看板。

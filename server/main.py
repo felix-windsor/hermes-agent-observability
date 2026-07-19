@@ -62,7 +62,7 @@ SCENARIOS = [
             "task-skill-readme-polish",
             "task-skill-architecture",
             "task-skill-review",
-            "task-skill-demo-script",
+            "task-skill-presentation-script",
         ],
     },
 ]
@@ -123,7 +123,7 @@ AGENTS = [
         "id": "sales_enablement",
         "label": "售前支持部通用 Agent",
         "department": "售前支持部",
-        "task_ids": ["task-skill-demo-script"],
+        "task_ids": ["task-skill-presentation-script"],
     },
 ]
 
@@ -452,7 +452,7 @@ def _skill_bundle_for(candidate_skill: str) -> list[str]:
         "content-polish-skill": ["content-polish-skill", "doc-structure-skill", "style-review-skill"],
         "diagram-skill": ["diagram-skill", "architecture-review-skill", "doc-structure-skill"],
         "product-review-skill": ["product-review-skill", "ui-review-skill", "interaction-check-skill"],
-        "demo-script-skill": ["demo-script-skill", "summary-writer-skill", "scenario-story-skill"],
+        "presentation-script-skill": ["presentation-script-skill", "summary-writer-skill", "scenario-story-skill"],
     }
     return bundles.get(candidate_skill, [candidate_skill] if candidate_skill else [])
 
@@ -986,8 +986,9 @@ def export_download(
     )
 
 
+@app.post("/api/sample/reset")
 @app.post("/api/demo/reset")
-def reset_demo_data() -> dict[str, str]:
+def reset_sample_data() -> dict[str, str]:
     store.seed_sample_data(force=True)
     return {"status": "ok"}
 

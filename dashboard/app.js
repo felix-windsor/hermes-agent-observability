@@ -170,8 +170,8 @@
     render();
   }
 
-  async function resetDemo() {
-    await getJSON("/api/demo/reset", { method: "POST" });
+  async function resetSample() {
+    await getJSON("/api/sample/reset", { method: "POST" });
     state.selectedTraceId = "";
     state.trace = null;
     await load();
@@ -441,7 +441,7 @@
         ${panel("最近事件", recentEvents())}
       </section>
       <footer>
-        <span>脱敏模拟数据，仅用于作品集演示和观测机制说明。</span>
+        <span>脱敏模拟数据，仅用于观测机制验证和分析口径说明。</span>
         <code>SQLite: ${escapeHtml(data.paths ? data.paths.sqlite : "")}</code>
       </footer>
     `;
@@ -480,7 +480,7 @@
     });
     document.querySelector('[data-action="refresh"]')?.addEventListener("click", load);
     document.querySelector('[data-action="export"]')?.addEventListener("click", exportEvents);
-    document.querySelector('[data-action="reset"]')?.addEventListener("click", resetDemo);
+    document.querySelector('[data-action="reset"]')?.addEventListener("click", resetSample);
   }
 
   load();

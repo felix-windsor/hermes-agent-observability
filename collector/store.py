@@ -1,4 +1,4 @@
-"""SQLite-backed event store for the standalone Agent observability demo."""
+"""SQLite-backed event store for standalone Agent observability samples."""
 from __future__ import annotations
 
 import hashlib
@@ -204,7 +204,7 @@ def _at(offset_minutes: int) -> str:
 
 
 def seed_sample_data(force: bool = False) -> None:
-    """Create demo traces so the dashboard has useful data on first launch."""
+    """Create sample traces so the dashboard has useful data on first launch."""
     if not force and event_count() > 0:
         return
     if force and sqlite_path().exists():
@@ -389,11 +389,11 @@ def seed_sample_data(force: bool = False) -> None:
             "scenario": "skill",
             "scenario_label": "Skill 触发分析",
             "minute": -34,
-            "user_request": "把 README 改成更适合面试讲解的版本",
+            "user_request": "把 README 改成更清晰的项目说明",
             "steps": [
                 _skill("writer"),
                 _tool("read_file", 130, path="README.md"),
-                _tool("apply_patch", 170, patch="add portfolio explanation"),
+                _tool("apply_patch", 170, patch="add project explanation"),
                 _tool("terminal", 360, command="pytest -q"),
             ],
         },
@@ -402,7 +402,7 @@ def seed_sample_data(force: bool = False) -> None:
             "scenario": "skill",
             "scenario_label": "Skill 触发分析",
             "minute": -26,
-            "user_request": "补一张面试讲解用的架构图",
+            "user_request": "补一张观测链路架构图",
             "steps": [
                 _skill("diagrammer"),
                 _tool("read_file", 110, path="README.md"),
@@ -424,15 +424,15 @@ def seed_sample_data(force: bool = False) -> None:
             ],
         },
         {
-            "task_id": "task-skill-demo-script",
+            "task_id": "task-skill-presentation-script",
             "scenario": "skill",
             "scenario_label": "Skill 触发分析",
             "minute": -10,
-            "user_request": "生成一段一分钟面试 demo 讲解脚本",
+            "user_request": "生成一段一分钟项目讲解脚本",
             "steps": [
                 _skill("presenter"),
-                _tool("read_file", 90, path="docs/demo-script.md"),
-                _tool("apply_patch", 110, patch="add short walkthrough"),
+                _tool("read_file", 90, path="docs/project-brief.md"),
+                _tool("apply_patch", 110, patch="add short project overview"),
             ],
         },
     ]
@@ -494,7 +494,7 @@ def _record_sample_trace(
             name=name,
             status="started",
             model="gpt-5",
-            provider="demo",
+            provider="sample",
             payload={
                 **base_payload,
                 "reason": reason,
@@ -513,7 +513,7 @@ def _record_sample_trace(
             status="success",
             duration_ms=duration_ms,
             model="gpt-5",
-            provider="demo",
+            provider="sample",
             payload={**base_payload, "finish_reason": "tool_calls", "reason": reason},
             created_at=_at(current),
         )
@@ -707,7 +707,7 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
         "task-skill-readme-polish": {
             "department": "product_ops",
             "department_label": "产品运营部",
-            "workflow": "portfolio_content_polish",
+            "workflow": "doc_content_polish",
             "workflow_label": "文档内容润色",
             "candidate_skill": "content-polish-skill",
             "agent_candidate": "内容运营 Agent",
@@ -728,12 +728,12 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "candidate_skill": "product-review-skill",
             "agent_candidate": "产品体验评审 Agent",
         },
-        "task-skill-demo-script": {
+        "task-skill-presentation-script": {
             "department": "sales_enablement",
             "department_label": "售前支持部",
-            "workflow": "demo_script_generation",
+            "workflow": "presentation_script_generation",
             "workflow_label": "演示脚本生成",
-            "candidate_skill": "demo-script-skill",
+            "candidate_skill": "presentation-script-skill",
             "agent_candidate": "售前演示 Agent",
         },
     }
@@ -769,6 +769,6 @@ def _skill_bundle_for(candidate_skill: str) -> list[str]:
         "content-polish-skill": ["content-polish-skill", "doc-structure-skill", "style-review-skill"],
         "diagram-skill": ["diagram-skill", "architecture-review-skill", "doc-structure-skill"],
         "product-review-skill": ["product-review-skill", "ui-review-skill", "interaction-check-skill"],
-        "demo-script-skill": ["demo-script-skill", "summary-writer-skill", "scenario-story-skill"],
+        "presentation-script-skill": ["presentation-script-skill", "summary-writer-skill", "scenario-story-skill"],
     }
     return bundles.get(candidate_skill, [candidate_skill])

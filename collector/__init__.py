@@ -1,4 +1,4 @@
-"""Collector primitives for the standalone observability demo."""
+"""Collector primitives for standalone observability samples."""
 
 from .store import (
     data_dir,

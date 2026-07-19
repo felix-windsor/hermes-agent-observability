@@ -20,7 +20,7 @@ test = [
 ]
 
 [project.scripts]
-hermes-observe-demo = "server.main:main"
+hermes-observe = "server.main:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

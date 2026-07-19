@@ -1,8 +1,8 @@
 # Hermes Agent 观测看板
 
-一个独立的 Agent Observability 作品集 demo：展示 trace 时间线、工具调用、Skill 使用、失败分类、部门内专项化分析、本地存储和可导出的运行事件。
+一个独立的 Agent Observability 看板：用于展示 trace 时间线、工具调用、Skill 使用、失败分类、部门内专项化分析、本地存储和可导出的运行事件。
 
-这个项目是从真实 Hermes Agent 插件中抽出来的独立展示版。Hermes 分支负责说明“如何接入真实 Agent 运行时”，这个仓库负责提供“打开就能看的作品集 demo”。
+这个项目把 Agent 运行事件采集、存储、分析 API 和本地看板拆成一个轻量独立版本，便于验证观测链路和分析口径。
 
 > 数据说明：仓库内数据均为脱敏模拟样例，不包含真实组织名称、用户信息、内部系统表名、原始周报或生产业务数据。样例只保留企业多部门 Agent 观测与专项化分析的结构和口径。
 
@@ -172,7 +172,7 @@ GET /api/events?range=24h&scenario=all&limit=30
 GET /api/traces/{trace_id}
 GET /api/export?range=24h&scenario=all&limit=1000
 GET /api/export/download?range=24h&scenario=all&limit=1000
-POST /api/demo/reset
+POST /api/sample/reset
 ```
 
 支持的时间范围是 `1h`、`24h`、`7d`、`all`。
@@ -199,4 +199,4 @@ POST /api/demo/reset
 https://github.com/felix-windsor/hermes-agent/tree/agent/local-observability-dashboard
 ```
 
-那个分支把观测能力接入了 Hermes Agent 的 LLM、Tool、Skill 和任务结果 hook。这个仓库则保留成轻量、清晰、方便面试展示的独立版本。
+那个分支把观测能力接入了 Hermes Agent 的 LLM、Tool、Skill 和任务结果 hook。这个仓库保留轻量独立版本，用于验证事件模型、分析 API 和本地看板。
