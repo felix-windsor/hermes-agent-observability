@@ -71,6 +71,11 @@
     return String(value || "").slice(0, 12);
   }
 
+  function compactText(value, max = 42) {
+    const text = String(value || "");
+    return text.length > max ? text.slice(0, max - 1) + "..." : text;
+  }
+
   function eventLabel(value) {
     return eventLabels[value] || value || "-";
   }
@@ -222,14 +227,19 @@
 
   function failureTable(rows) {
     if (!rows || !rows.length) return `<div class="empty">暂无失败记录。</div>`;
-    return `<table class="clickable"><thead><tr><th>时间</th><th>分类</th><th>事件</th><th>名称</th><th>Trace</th></tr></thead><tbody>
-      ${rows.map((row) => `<tr data-trace-id="${escapeHtml(row.trace_id)}">
+    return `<table class="clickable"><thead><tr><th>时间</th><th>分类</th><th>事件</th><th>名称</th><th>建议</th><th>Trace</th></tr></thead><tbody>
+      ${rows.map((row) => {
+        const suggestions = row.failure_category && row.failure_category.suggestions ? row.failure_category.suggestions : [];
+        const firstSuggestion = suggestions[0] || "打开 trace 查看上下文";
+        return `<tr data-trace-id="${escapeHtml(row.trace_id)}">
         <td>${dateShort(row.created_at)}</td>
         <td class="error">${escapeHtml(row.failure_category ? row.failure_category.label : "未分类")}</td>
         <td>${escapeHtml(eventLabel(row.event_type))}</td>
         <td><code>${escapeHtml(row.name || "agent_task")}</code></td>
+        <td title="${escapeHtml(firstSuggestion)}">${escapeHtml(compactText(firstSuggestion))}</td>
         <td><code>${shortId(row.trace_id)}</code></td>
-      </tr>`).join("")}
+      </tr>`;
+      }).join("")}
     </tbody></table>`;
   }
 
@@ -251,6 +261,10 @@
         <strong>${escapeHtml(story.summary || "暂无阶段归纳")}</strong>
         ${story.phases && story.phases.length ? `<div class="phase-chain">${story.phases.map((phase) => `<b>${escapeHtml(phase)}</b>`).join("<i>→</i>")}</div>` : ""}
       </div>
+      ${story.next_actions && story.next_actions.length ? `<div class="trace-actions">
+        <span>建议动作</span>
+        <ul>${story.next_actions.map((action) => `<li>${escapeHtml(action)}</li>`).join("")}</ul>
+      </div>` : ""}
       <div class="trace-summary">
         ${kpi("Trace", shortId(summary.trace_id))}
         ${kpi("事件", fmtNumber(summary.events))}

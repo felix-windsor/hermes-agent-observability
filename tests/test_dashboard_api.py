@@ -28,6 +28,7 @@ def test_overview_contains_sample_data(monkeypatch, tmp_path):
     assert data["totals"]["traces"] > 0
     assert data["tools"]
     assert data["failure_categories"]
+    assert data["failures"][0]["failure_category"]["suggestions"]
     assert any(item["id"] == "permission" for item in data["scenarios"])
 
 
@@ -95,3 +96,21 @@ def test_trace_story_detects_recovery_after_tool_failure(monkeypatch, tmp_path):
     assert "失败分析" in story["phases"]
     assert "重试恢复" in story["phases"]
     assert "最终成功" in story["summary"]
+    assert story["next_actions"]
+    assert any("重试" in action for action in story["next_actions"])
+
+
+def test_failure_category_exposes_optimization_suggestions(monkeypatch, tmp_path):
+    app, _store = fresh_app(monkeypatch, tmp_path)
+    client = TestClient(app)
+    overview = client.get("/api/overview?range=24h&scenario=permission").json()
+
+    permission_failure = next(
+        row for row in overview["failures"]
+        if row["failure_category"]["code"] == "permission_error"
+    )
+    category = permission_failure["failure_category"]
+
+    assert category["label"] == "权限问题"
+    assert category["confidence"] > 0.8
+    assert any("root" in suggestion for suggestion in category["suggestions"])

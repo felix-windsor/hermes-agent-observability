@@ -157,7 +157,109 @@ def _flatten_text(value: Any) -> str:
     return str(value)
 
 
-def classify_failure(row: dict[str, Any]) -> dict[str, str]:
+FAILURE_KNOWLEDGE: list[dict[str, Any]] = [
+    {
+        "code": "permission_error",
+        "label": "权限问题",
+        "confidence": 0.92,
+        "patterns": ("permission denied", "eacces", "operation not permitted", "forbidden"),
+        "suggestions": [
+            "检查执行用户是否一致，避免 root 与普通用户混用生成运行文件。",
+            "检查目标目录和文件 owner，例如 `chown -R felix:felix <path>`。",
+            "确认日志、SQLite、缓存目录对当前进程可写。",
+        ],
+    },
+    {
+        "code": "auth_error",
+        "label": "认证/API Key 问题",
+        "confidence": 0.9,
+        "patterns": ("unauthorized", "401", "api key", "invalid token", "authentication"),
+        "suggestions": [
+            "检查环境变量是否写入当前进程使用的 `.env` 或启动脚本。",
+            "区分 public key、secret key、base URL 和 region，避免连到错误项目。",
+            "在任务开始时做一次配置自检，把缺失 key 直接暴露成可读错误。",
+        ],
+    },
+    {
+        "code": "rate_limit",
+        "label": "限流",
+        "confidence": 0.86,
+        "patterns": ("rate limit", "429", "too many requests", "quota"),
+        "suggestions": [
+            "为高频工具增加指数退避和最大重试次数。",
+            "对重复请求增加缓存或批处理，降低短时间调用峰值。",
+            "在看板里按 provider/model 观察限流是否集中出现。",
+        ],
+    },
+    {
+        "code": "timeout",
+        "label": "超时",
+        "confidence": 0.86,
+        "patterns": ("timeout", "timed out", "deadline exceeded"),
+        "suggestions": [
+            "为高延迟工具增加 timeout、重试和退避策略。",
+            "对可复用远程结果做缓存，减少重复请求。",
+            "记录 retry_count 和最终是否恢复，区分偶发抖动和稳定故障。",
+        ],
+    },
+    {
+        "code": "network_error",
+        "label": "网络问题",
+        "confidence": 0.8,
+        "patterns": ("network", "connection refused", "connection reset", "dns", "ssl", "tls"),
+        "suggestions": [
+            "记录请求目标、region 和错误码，优先判断是否为环境网络问题。",
+            "为外部依赖增加健康检查和失败降级路径。",
+            "把网络错误与业务错误分开统计，避免误判 Agent 推理质量。",
+        ],
+    },
+    {
+        "code": "not_found",
+        "label": "资源不存在",
+        "confidence": 0.82,
+        "patterns": ("not found", "no such file", "enoent", "404"),
+        "suggestions": [
+            "检查路径、分支、资源 ID 或 API endpoint 是否来自同一环境。",
+            "在执行工具前增加存在性检查，给出更早、更清楚的失败信息。",
+            "把缺失资源记录到 payload，方便从 trace 详情直接复盘。",
+        ],
+    },
+    {
+        "code": "agent_failed",
+        "label": "Agent 任务失败",
+        "confidence": 0.68,
+        "patterns": ("task.failed", "task.interrupted", "agent_task"),
+        "suggestions": [
+            "打开 trace 时间线，先定位第一个 error 事件而不是只看最终失败。",
+            "把失败前后的 LLM、Tool、Skill 事件串起来，判断问题属于规划、执行还是恢复。",
+            "给关键阶段补充结构化 payload，让失败原因能被自动归类。",
+        ],
+    },
+    {
+        "code": "tool_error",
+        "label": "工具执行错误",
+        "confidence": 0.62,
+        "patterns": ("tool.completed", "tool.started"),
+        "suggestions": [
+            "统计同一工具的错误率和 P95 耗时，优先治理高频失败工具。",
+            "为工具输出增加结构化错误码，减少只能靠日志文本判断的情况。",
+            "把可恢复错误接入重试，把不可恢复错误转成对用户可读的下一步动作。",
+        ],
+    },
+]
+
+UNKNOWN_FAILURE = {
+    "code": "unknown",
+    "label": "未分类",
+    "confidence": 0.3,
+    "suggestions": [
+        "补充结构化错误码、stderr 摘要或异常类型，降低未分类比例。",
+        "把未分类失败样本沉淀成新规则，再观察下一轮分类覆盖率。",
+    ],
+}
+
+
+def classify_failure(row: dict[str, Any]) -> dict[str, Any]:
     text = " ".join(
         str(part or "")
         for part in (
@@ -167,20 +269,17 @@ def classify_failure(row: dict[str, Any]) -> dict[str, str]:
             _flatten_text(row.get("payload")),
         )
     ).lower()
-    rules = [
-        ("permission_error", "权限问题", ("permission denied", "eacces", "operation not permitted", "forbidden")),
-        ("auth_error", "认证/API Key 问题", ("unauthorized", "401", "api key", "invalid token", "authentication")),
-        ("rate_limit", "限流", ("rate limit", "429", "too many requests", "quota")),
-        ("timeout", "超时", ("timeout", "timed out", "deadline exceeded")),
-        ("network_error", "网络问题", ("network", "connection refused", "connection reset", "dns", "ssl", "tls")),
-        ("not_found", "资源不存在", ("not found", "no such file", "enoent", "404")),
-        ("agent_failed", "Agent 任务失败", ("task.failed", "task.interrupted", "agent_task")),
-        ("tool_error", "工具执行错误", ("tool.completed", "tool.started")),
-    ]
-    for code, label, needles in rules:
-        if any(needle in text for needle in needles):
-            return {"code": code, "label": label}
-    return {"code": "unknown", "label": "未分类"}
+    for rule in FAILURE_KNOWLEDGE:
+        matched_pattern = next((pattern for pattern in rule["patterns"] if pattern in text), "")
+        if matched_pattern:
+            return {
+                "code": rule["code"],
+                "label": rule["label"],
+                "confidence": rule["confidence"],
+                "matched_pattern": matched_pattern,
+                "suggestions": rule["suggestions"],
+            }
+    return {**UNKNOWN_FAILURE, "matched_pattern": ""}
 
 
 def _decorate_failure(row: dict[str, Any]) -> dict[str, Any]:
@@ -195,6 +294,20 @@ def _first_payload_value(rows: list[dict[str, Any]], key: str) -> str:
         if isinstance(payload, dict) and payload.get(key):
             return str(payload[key])
     return ""
+
+
+def _next_actions_from_failures(failures: list[dict[str, Any]], limit: int = 4) -> list[str]:
+    actions: list[str] = []
+    seen: set[str] = set()
+    for failure in failures:
+        category = failure.get("failure_category") or classify_failure(failure)
+        for suggestion in category.get("suggestions", []):
+            if suggestion not in seen:
+                actions.append(suggestion)
+                seen.add(suggestion)
+            if len(actions) >= limit:
+                return actions
+    return actions
 
 
 def _build_trace_story(rows: list[dict[str, Any]], failures: list[dict[str, Any]]) -> dict[str, Any]:
@@ -239,6 +352,7 @@ def _build_trace_story(rows: list[dict[str, Any]], failures: list[dict[str, Any]
         "skill_calls": skill_calls,
         "failure_signals": len(failures),
         "recovered_after_failure": bool(failed_tools and _has_success_after_failure(rows)),
+        "next_actions": _next_actions_from_failures(failures),
     }
 
 
@@ -333,7 +447,13 @@ def overview(range: str = Query("24h"), scenario: str = Query("all")) -> dict[st
             category = failure["failure_category"]
             row = failure_categories.setdefault(
                 category["code"],
-                {"code": category["code"], "label": category["label"], "count": 0},
+                {
+                    "code": category["code"],
+                    "label": category["label"],
+                    "confidence": category.get("confidence", 0),
+                    "suggestions": category.get("suggestions", []),
+                    "count": 0,
+                },
             )
             row["count"] += 1
         traces = _rows(conn, f"""

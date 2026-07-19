@@ -289,7 +289,8 @@ pre {
 }
 
 .trace-request,
-.trace-story {
+.trace-story,
+.trace-actions {
   background: rgba(56, 189, 248, 0.08);
   border: 1px solid rgba(56, 189, 248, 0.18);
   border-radius: 7px;
@@ -304,8 +305,14 @@ pre {
   border-color: rgba(34, 197, 94, 0.18);
 }
 
+.trace-actions {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.2);
+}
+
 .trace-request span,
-.trace-story span {
+.trace-story span,
+.trace-actions span {
   color: rgba(186, 230, 253, 0.78);
   font-size: 11px;
 }
@@ -314,9 +321,27 @@ pre {
   color: rgba(187, 247, 208, 0.78);
 }
 
+.trace-actions span {
+  color: rgba(254, 240, 138, 0.82);
+}
+
 .trace-request strong,
 .trace-story strong {
   font-size: 14px;
+  line-height: 1.45;
+}
+
+.trace-actions ul {
+  display: grid;
+  gap: 5px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.trace-actions li {
+  color: rgba(226, 232, 240, 0.86);
+  font-size: 12px;
   line-height: 1.45;
 }
 
