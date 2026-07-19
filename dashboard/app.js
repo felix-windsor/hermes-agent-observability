@@ -303,7 +303,6 @@
     app.innerHTML = `
       <header class="hero">
         <div>
-          <p class="eyebrow">Agent 观测作品集 Demo</p>
           <h1>Hermes Agent 观测看板</h1>
           <p class="subtitle">展示 trace 时间线、工具调用、Skill 使用、失败分类和可导出的运行事件。</p>
         </div>
