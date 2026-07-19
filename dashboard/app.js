@@ -5,9 +5,7 @@
   const state = {
     range: "24h",
     scenario: "all",
-    agent: "engineering",
     scenarios: [],
-    agents: [],
     overview: null,
     events: [],
     trace: null,
@@ -26,18 +24,10 @@
 
   const defaultScenarios = [
     { id: "all", label: "全部场景", description: "展示所有样例 trace" },
-    { id: "code_fix", label: "正常代码修复", description: "代码修改、测试验证和任务完成链路" },
-    { id: "permission", label: "权限失败排查", description: "权限错误、修复动作和重试结果" },
+    { id: "task_flow", label: "任务处理链路", description: "用户请求、工具执行和最终结果链路" },
+    { id: "permission", label: "访问权限校验", description: "员工访问通用 Agent 或专项 Agent 的权限控制" },
     { id: "timeout", label: "工具超时重试", description: "远程请求超时和后续成功重试" },
     { id: "skill", label: "Skill 触发分析", description: "研究类任务中的 Skill 使用链路" },
-  ];
-  const defaultAgents = [
-    { id: "engineering", label: "研发部通用 Agent", department: "研发部" },
-    { id: "platform", label: "平台工程部通用 Agent", department: "平台工程部" },
-    { id: "product_ops", label: "产品运营部通用 Agent", department: "产品运营部" },
-    { id: "data_ops", label: "数据运营部通用 Agent", department: "数据运营部" },
-    { id: "strategy", label: "战略分析部通用 Agent", department: "战略分析部" },
-    { id: "sales_enablement", label: "售前支持部通用 Agent", department: "售前支持部" },
   ];
 
   const eventLabels = {
@@ -123,15 +113,14 @@
     state.exportMessage = "";
     render();
     try {
-      const query = "?range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario) + "&agent=" + encodeURIComponent(state.agent);
+      const query = "?range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario);
       const [overview, recent] = await Promise.all([
         getJSON("/api/overview" + query),
-        getJSON("/api/events?limit=30&range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario) + "&agent=" + encodeURIComponent(state.agent)),
+        getJSON("/api/events?limit=30&range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario)),
       ]);
       state.overview = overview;
       state.events = recent.events || [];
       state.scenarios = overview.scenarios || defaultScenarios;
-      state.agents = overview.agents || defaultAgents;
       if (!state.selectedTraceId && overview.traces && overview.traces.length) {
         state.selectedTraceId = overview.traces[0].trace_id;
       }
@@ -159,7 +148,7 @@
   }
 
   async function exportEvents() {
-    const url = "/api/export/download?range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario) + "&agent=" + encodeURIComponent(state.agent) + "&limit=1000";
+    const url = "/api/export/download?range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario) + "&limit=1000";
     const link = document.createElement("a");
     link.href = url;
     link.download = "agent-observability-" + state.range + ".json";
@@ -179,13 +168,6 @@
 
   async function changeScenario(scenario) {
     state.scenario = scenario;
-    state.selectedTraceId = "";
-    state.trace = null;
-    await load();
-  }
-
-  async function changeAgent(agent) {
-    state.agent = agent;
     state.selectedTraceId = "";
     state.trace = null;
     await load();
@@ -264,7 +246,7 @@
   }
 
   function opportunityTable(rows) {
-    if (!rows || !rows.length) return `<div class="empty">暂无部门内专项化候选。</div>`;
+    if (!rows || !rows.length) return `<div class="empty">暂无专项化候选。</div>`;
     return `<table class="clickable opportunity-table"><thead><tr><th>业务流程</th><th>高频 Skill</th><th>Skill 组合</th><th>全流程专项 Agent</th><th>Trace 数</th><th>最终成功率</th><th>中间失败</th><th>平均耗时</th><th>工具调用</th><th>下钻判断</th></tr></thead><tbody>
       ${rows.map((row) => `<tr data-trace-id="${escapeHtml(row.primary_trace_id)}">
         <td>${escapeHtml(row.workflow_label)}</td>
@@ -337,10 +319,9 @@
         <ul>${story.next_actions.map((action) => `<li>${escapeHtml(action)}</li>`).join("")}</ul>
       </div>` : ""}
       ${opportunity.agent_candidate ? `<div class="trace-opportunity">
-        <span>部门内专项化判断</span>
+        <span>专项化判断</span>
         <strong>${escapeHtml(opportunity.recommendation)}</strong>
         <div class="opportunity-meta">
-          <b>${escapeHtml(opportunity.department_agent || opportunity.department_label)}</b>
           <b>${escapeHtml(opportunity.capability_candidate || opportunity.candidate_skill)}</b>
           <b>${escapeHtml(opportunity.workflow_label)}</b>
         </div>
@@ -380,13 +361,11 @@
     const data = state.overview || { totals: {}, event_types: [], failure_categories: [], skill_priorities: [], opportunities: [], traces: [], tools: [], skills: [], failures: [] };
     const totals = data.totals || {};
     const scenarios = state.scenarios.length ? state.scenarios : defaultScenarios;
-    const agents = state.agents.length ? state.agents : defaultAgents;
-    const currentAgent = agents.find((item) => item.id === state.agent) || agents[0] || {};
     app.innerHTML = `
       <header class="hero">
         <div>
-          <h1>${escapeHtml(currentAgent.label || "单部门 Agent 观测看板")}</h1>
-          <p class="subtitle">单部门 Agent 视角：展示 trace 时间线、工具调用、Skill 高频口径、失败分类和专项化下钻判断。</p>
+          <h1>当前通用 Agent 观测看板</h1>
+          <p class="subtitle">单 Agent 视角：展示 trace 时间线、工具调用、Skill 高频口径、访问权限失败、失败分类和专项化下钻判断。</p>
           <p class="data-note">当前数据为脱敏模拟样例，不包含真实组织、用户、内部系统表名或原始业务数据。</p>
         </div>
         <div class="actions">
@@ -396,12 +375,6 @@
           <button data-action="reset">重置样例</button>
         </div>
       </header>
-      <section class="scenario-strip">
-        ${agents.map((item) => `<button data-agent="${escapeHtml(item.id)}" class="${state.agent === item.id ? "active" : ""}">
-          <strong>${escapeHtml(item.label)}</strong>
-          <span>${escapeHtml(item.department || "")}</span>
-        </button>`).join("")}
-      </section>
       <section class="scenario-strip compact">
         ${scenarios.map((item) => `<button data-scenario="${escapeHtml(item.id)}" class="${state.scenario === item.id ? "active" : ""}">
           <strong>${escapeHtml(item.label)}</strong>
@@ -471,9 +444,6 @@
     });
     document.querySelectorAll("[data-scenario]").forEach((button) => {
       button.addEventListener("click", () => changeScenario(button.dataset.scenario));
-    });
-    document.querySelectorAll("[data-agent]").forEach((button) => {
-      button.addEventListener("click", () => changeAgent(button.dataset.agent));
     });
     document.querySelectorAll("[data-trace-id]").forEach((row) => {
       row.addEventListener("click", () => loadTrace(row.dataset.traceId));

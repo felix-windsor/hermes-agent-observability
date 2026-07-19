@@ -20,9 +20,9 @@ DASHBOARD_DIR = APP_ROOT / "dashboard"
 SCENARIOS = [
     {"id": "all", "label": "全部场景", "description": "展示所有样例 trace", "task_ids": []},
     {
-        "id": "code_fix",
-        "label": "正常代码修复",
-        "description": "代码修改、测试验证和任务完成链路",
+        "id": "task_flow",
+        "label": "任务处理链路",
+        "description": "用户请求、工具执行和最终结果链路",
         "task_ids": [
             "task-code-auth-refresh",
             "task-code-cache-bug",
@@ -33,13 +33,13 @@ SCENARIOS = [
     },
     {
         "id": "permission",
-        "label": "权限失败排查",
-        "description": "权限错误、修复动作和重试结果",
+        "label": "访问权限校验",
+        "description": "员工访问通用 Agent 或专项 Agent 的权限控制",
         "task_ids": [
-            "task-permission-dashboard-log",
-            "task-permission-pycache",
-            "task-permission-sqlite",
-            "task-permission-readonly",
+            "task-permission-specialized-agent",
+            "task-permission-temporary-access",
+            "task-permission-agent-scope",
+            "task-permission-offboarding",
         ],
     },
     {
@@ -68,62 +68,9 @@ SCENARIOS = [
 ]
 AGENTS = [
     {
-        "id": "engineering",
-        "label": "研发部通用 Agent",
-        "department": "研发部",
-        "task_ids": [
-            "task-code-auth-refresh",
-            "task-code-cache-bug",
-            "task-code-flaky-test",
-        ],
-    },
-    {
-        "id": "platform",
-        "label": "平台工程部通用 Agent",
-        "department": "平台工程部",
-        "task_ids": [
-            "task-code-hook-refactor",
-            "task-permission-dashboard-log",
-            "task-permission-pycache",
-            "task-permission-sqlite",
-            "task-permission-readonly",
-            "task-timeout-npm-install",
-        ],
-    },
-    {
-        "id": "product_ops",
-        "label": "产品运营部通用 Agent",
-        "department": "产品运营部",
-        "task_ids": [
-            "task-code-dashboard-copy",
-            "task-skill-readme-polish",
-            "task-skill-architecture",
-            "task-skill-review",
-        ],
-    },
-    {
-        "id": "data_ops",
-        "label": "数据运营部通用 Agent",
-        "department": "数据运营部",
-        "task_ids": [
-            "task-timeout-langfuse-export",
-            "task-timeout-report-export",
-        ],
-    },
-    {
-        "id": "strategy",
-        "label": "战略分析部通用 Agent",
-        "department": "战略分析部",
-        "task_ids": [
-            "task-timeout-web-search",
-            "task-skill-research-patterns",
-        ],
-    },
-    {
-        "id": "sales_enablement",
-        "label": "售前支持部通用 Agent",
-        "department": "售前支持部",
-        "task_ids": ["task-skill-presentation-script"],
+        "id": "current",
+        "label": "当前通用 Agent",
+        "task_ids": [],
     },
 ]
 
@@ -236,11 +183,11 @@ FAILURE_KNOWLEDGE: list[dict[str, Any]] = [
         "code": "permission_error",
         "label": "权限问题",
         "confidence": 0.92,
-        "patterns": ("permission denied", "eacces", "operation not permitted", "forbidden"),
+        "patterns": ("permission denied", "eacces", "operation not permitted", "forbidden", "agent_scope_denied", "policy_denied"),
         "suggestions": [
-            "检查执行用户是否一致，避免 root 与普通用户混用生成运行文件。",
-            "检查目标目录和文件 owner，例如 `chown -R felix:felix <path>`。",
-            "确认日志、SQLite、缓存目录对当前进程可写。",
+            "检查用户身份、所属部门和目标 Agent 的 scope 是否匹配。",
+            "区分通用 Agent 访问权和专项 Agent 访问权，专项能力需要单独授权。",
+            "把权限拒绝记录成结构化错误码，例如 `agent_scope_denied` 或 `policy_denied`。",
         ],
     },
     {
@@ -444,7 +391,9 @@ def _skill_bundle_for(candidate_skill: str) -> list[str]:
         "code-debug-skill": ["code-debug-skill", "code-search-skill", "patch-apply-skill", "test-runner-skill"],
         "dashboard-copy-skill": ["dashboard-copy-skill", "ui-copy-skill", "patch-apply-skill"],
         "agent-hook-skill": ["agent-hook-skill", "code-search-skill", "architecture-review-skill", "test-runner-skill"],
-        "env-permission-skill": ["env-permission-skill", "shell-diagnosis-skill", "permission-repair-skill"],
+        "access-control-skill": ["access-control-skill", "identity-lookup-skill", "agent-scope-check-skill"],
+        "access-approval-skill": ["access-approval-skill", "policy-check-skill", "permission-grant-skill"],
+        "access-audit-skill": ["access-audit-skill", "identity-lookup-skill", "permission-revoke-skill"],
         "remote-retry-skill": ["remote-retry-skill", "api-diagnosis-skill", "retry-policy-skill"],
         "dependency-recovery-skill": ["dependency-recovery-skill", "shell-diagnosis-skill", "cache-policy-skill"],
         "research-synthesis-skill": ["research-synthesis-skill", "web-search-skill", "source-review-skill", "summary-writer-skill"],
@@ -462,15 +411,15 @@ def _business_context(row: dict[str, Any]) -> dict[str, Any]:
     task_id = str(row.get("task_id") or "")
     scenario = str(payload.get("scenario") or "")
     if task_id.startswith("task-code"):
-        fallback = ("engineering", "研发部", "code_assistance", "代码研发辅助", "code-debug-skill", "研发缺陷定位 Agent")
+        fallback = ("current", "当前业务域", "task_assistance", "任务处理辅助", "task-diagnosis-skill", "任务处理 Agent")
     elif task_id.startswith("task-permission"):
-        fallback = ("platform", "平台工程部", "dev_env_repair", "开发环境修复", "env-permission-skill", "开发环境运维 Agent")
+        fallback = ("current", "当前业务域", "agent_access_control", "Agent 访问控制", "access-control-skill", "权限治理 Agent")
     elif task_id.startswith("task-timeout"):
-        fallback = ("data_ops", "数据运营部", "remote_recovery", "远程接口恢复", "remote-retry-skill", "数据接口巡检 Agent")
+        fallback = ("current", "当前业务域", "remote_recovery", "远程接口恢复", "remote-retry-skill", "远程接口巡检 Agent")
     elif task_id.startswith("task-skill"):
-        fallback = ("product_ops", "产品运营部", "content_enablement", "内容与方案生产", "content-polish-skill", "内容运营 Agent")
+        fallback = ("current", "当前业务域", "content_enablement", "内容与方案生产", "content-polish-skill", "内容处理 Agent")
     else:
-        fallback = (scenario or "unknown", "未归属部门", scenario or "unknown", "未归属流程", "unknown-skill", "待评估专项 Agent")
+        fallback = ("current", "当前业务域", scenario or "unknown", "未归属流程", "unknown-skill", "待评估专项 Agent")
 
     department_label = str(payload.get("department_label") or fallback[1])
     workflow_label = str(payload.get("workflow_label") or fallback[3])
@@ -480,7 +429,7 @@ def _business_context(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "department": str(payload.get("department") or fallback[0]),
         "department_label": department_label,
-        "department_agent": str(payload.get("department_agent") or f"{department_label}通用 Agent"),
+        "department_agent": str(payload.get("department_agent") or "当前通用 Agent"),
         "workflow": str(payload.get("workflow") or fallback[2]),
         "workflow_label": workflow_label,
         "candidate_skill": candidate_skill,
@@ -631,7 +580,7 @@ def _automation_opportunities(
             f"中间失败 {group['intermediate_failure_traces']} 次。"
         )
         group["positioning"] = (
-            f"在「{group['department_agent']}」内部，把「{group['capability_candidate']}」"
+            f"在当前通用 Agent 内部，把「{group['capability_candidate']}」"
             f"细化成「{group['specialized_agent_candidate']}」。"
         )
         opportunities.append(group)
@@ -722,7 +671,7 @@ def _trace_automation_opportunity(rows: list[dict[str, Any]], failures: list[dic
     return {
         **context,
         "recommendation": (
-            f"归属「{context['department_agent']}」，可把「{context['capability_candidate']}」"
+            f"可把「{context['capability_candidate']}」"
             f"细化为「{context['specialized_agent_candidate']}」，{status_text}。"
         ),
     }
@@ -854,7 +803,7 @@ def overview(
     return {
         "range": range,
         "scenario": scenario,
-        "agent": agent,
+        "agent": "current",
         "scenarios": [{key: value for key, value in item.items() if key != "task_ids"} for item in SCENARIOS],
         "agents": [{key: value for key, value in item.items() if key != "task_ids"} for item in AGENTS],
         "paths": {"sqlite": str(store.sqlite_path()), "jsonl": str(store.events_jsonl_path())},

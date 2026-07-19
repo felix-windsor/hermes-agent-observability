@@ -42,7 +42,7 @@ POST /api/sample/reset
 
 ```text
 all
-code_fix
+task_flow
 permission
 timeout
 skill
