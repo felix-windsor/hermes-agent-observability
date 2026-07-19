@@ -202,16 +202,16 @@ def seed_sample_data(force: bool = False) -> None:
         events_jsonl_path().unlink()
 
     samples = [
-        ("task-code-fix", -52, "Fix failing pytest around auth refresh", "terminal", "success", 410),
-        ("task-code-fix", -51, "Fix failing pytest around auth refresh", "read_file", "success", 160),
-        ("task-code-fix", -50, "Fix failing pytest around auth refresh", "apply_patch", "success", 90),
-        ("task-code-fix", -48, "Fix failing pytest around auth refresh", "terminal", "success", 1230),
-        ("task-permission", -38, "Run dashboard from home directory", "terminal", "error", 75),
-        ("task-permission", -37, "Run dashboard from home directory", "terminal", "success", 180),
-        ("task-research", -24, "Summarize Agent observability patterns", "web_search", "success", 860),
-        ("task-research", -23, "Summarize Agent observability patterns", "skill_view", "success", 40),
-        ("task-timeout", -13, "Fetch remote trace export", "http_fetch", "error", 10000),
-        ("task-timeout", -12, "Fetch remote trace export", "http_fetch", "success", 1450),
+        ("task-code-fix", -52, "修复 auth refresh 相关的 pytest 失败", "terminal", "success", 410),
+        ("task-code-fix", -51, "修复 auth refresh 相关的 pytest 失败", "read_file", "success", 160),
+        ("task-code-fix", -50, "修复 auth refresh 相关的 pytest 失败", "apply_patch", "success", 90),
+        ("task-code-fix", -48, "修复 auth refresh 相关的 pytest 失败", "terminal", "success", 1230),
+        ("task-permission", -38, "从 home 目录启动 dashboard", "terminal", "error", 75),
+        ("task-permission", -37, "从 home 目录启动 dashboard", "terminal", "success", 180),
+        ("task-research", -24, "总结 Agent 观测机制的常见模式", "web_search", "success", 860),
+        ("task-research", -23, "总结 Agent 观测机制的常见模式", "skill_view", "success", 40),
+        ("task-timeout", -13, "拉取远程 trace 导出文件", "http_fetch", "error", 10000),
+        ("task-timeout", -12, "拉取远程 trace 导出文件", "http_fetch", "success", 1450),
     ]
 
     for task_id, minute, user_message, tool_name, status, tool_ms in samples:
@@ -276,7 +276,7 @@ def seed_sample_data(force: bool = False) -> None:
 
 def _sample_error(tool_name: str) -> str:
     if tool_name == "terminal":
-        return "Permission denied: /home/felix/.hermes/dashboard.log"
+        return "Permission denied: /home/felix/.hermes/dashboard.log，当前用户没有写入权限"
     if tool_name == "http_fetch":
-        return "request timed out after 10s"
-    return "tool execution failed"
+        return "request timed out after 10s，远程 trace 导出接口超时"
+    return "tool execution failed，工具执行失败"

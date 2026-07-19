@@ -1,39 +1,35 @@
-# Hermes Agent Observability
+# Hermes Agent 观测看板
 
-A standalone portfolio demo for Agent observability: trace timelines, tool
-calls, skill usage, failure classification, local storage, and a dashboard that
-opens with sample data.
+一个独立的 Agent Observability 作品集 demo：展示 trace 时间线、工具调用、Skill 使用、失败分类、本地存储和可导出的运行事件。
 
-This project was extracted from a real Hermes Agent plugin. The Hermes branch
-shows production integration; this repository focuses on a clean, runnable demo.
+这个项目是从真实 Hermes Agent 插件中抽出来的独立展示版。Hermes 分支负责说明“如何接入真实 Agent 运行时”，这个仓库负责提供“打开就能看的作品集 demo”。
 
-## Why
+## 为什么做
 
-Agent behavior is often a black box. A user sees the final answer, but not:
+Agent 系统经常像黑盒。用户只能看到最终回答，但看不到：
 
-- which tools were called
-- which skills were activated
-- where latency accumulated
-- why a task failed
-- whether a change improved or regressed behavior
+- 调用了哪些工具
+- 激活了哪些 Skill
+- 延迟耗在哪里
+- 任务为什么失败
+- 修改 prompt、tool 或 skill 后效果有没有变好
 
-This project turns Agent runtime steps into structured events and displays them
-as an analysis dashboard.
+这个项目把 Agent 的运行步骤抽象成结构化事件，并通过本地看板展示出来，形成一个小而完整的分析闭环。
 
-## Features
+## 功能
 
-- Local JSONL + SQLite event storage
-- FastAPI analytics API
-- Static dashboard with no frontend build step
-- Sample data generated automatically on first launch
-- Time range filters: 1 hour, 24 hours, 7 days, all time
-- Trace detail timeline
-- Tool performance table
-- Skill usage table
-- Failure category analysis
-- JSON export
+- 本地 JSONL + SQLite 事件存储
+- FastAPI 分析接口
+- 静态 Dashboard，无需前端构建
+- 首次启动自动生成样例数据
+- 时间范围筛选：1 小时、24 小时、7 天、全部
+- Trace 详情时间线
+- Tool 性能表
+- Skill 使用表
+- 失败原因分类
+- JSON 导出
 
-## Quick Start
+## 快速启动
 
 ```bash
 python -m venv .venv
@@ -42,21 +38,21 @@ pip install -e ".[test]"
 uvicorn server.main:app --reload --port 9120
 ```
 
-Open:
+打开：
 
 ```text
 http://127.0.0.1:9120
 ```
 
-The app seeds sample traces automatically. To reset the demo data:
+应用会自动生成样例 trace。需要重置样例数据时运行：
 
 ```bash
 python scripts/generate_sample_data.py
 ```
 
-## Data Model
+## 数据模型
 
-Each runtime step is stored as an event:
+每个运行步骤都会被存成一个事件：
 
 ```text
 event_id
@@ -74,7 +70,7 @@ provider
 payload
 ```
 
-Representative event types:
+代表性事件类型：
 
 ```text
 llm.requested
@@ -96,26 +92,25 @@ GET /api/export?range=24h&limit=1000
 POST /api/demo/reset
 ```
 
-Supported ranges are `1h`, `24h`, `7d`, and `all`.
+支持的时间范围是 `1h`、`24h`、`7d`、`all`。
 
-## Optimization Loop
+## 优化闭环
 
 ```text
-collect runtime events
--> inspect health metrics
--> open a failed or slow trace
--> identify tool, skill, prompt, or permission issue
--> change the Agent
--> compare the next run
+采集运行事件
+-> 查看整体健康度
+-> 打开失败或慢 trace
+-> 定位 tool、skill、prompt 或权限问题
+-> 修改 Agent 行为
+-> 对比下一次运行结果
 ```
 
-## Real Hermes Integration
+## 真实 Hermes 集成
 
-The integration branch is here:
+真实集成分支在这里：
 
 ```text
 https://github.com/felix-windsor/hermes-agent/tree/agent/local-observability-dashboard
 ```
 
-That branch wires observability into Hermes Agent hooks. This repo keeps the
-dashboard and analysis path small enough to review and demo quickly.
+那个分支把观测能力接入了 Hermes Agent 的 LLM、Tool、Skill 和任务结果 hook。这个仓库则保留成轻量、清晰、方便面试展示的独立版本。

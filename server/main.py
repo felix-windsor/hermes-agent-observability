@@ -25,7 +25,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="Hermes Agent Observability", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Hermes Agent 观测看板", version="0.1.0", lifespan=lifespan)
 
 
 def _limit(value: int, default: int = 50, maximum: int = 500) -> int:
@@ -93,19 +93,19 @@ def classify_failure(row: dict[str, Any]) -> dict[str, str]:
         )
     ).lower()
     rules = [
-        ("permission_error", "Permission", ("permission denied", "eacces", "operation not permitted", "forbidden")),
-        ("auth_error", "Auth/API key", ("unauthorized", "401", "api key", "invalid token", "authentication")),
-        ("rate_limit", "Rate limit", ("rate limit", "429", "too many requests", "quota")),
-        ("timeout", "Timeout", ("timeout", "timed out", "deadline exceeded")),
-        ("network_error", "Network", ("network", "connection refused", "connection reset", "dns", "ssl", "tls")),
-        ("not_found", "Not found", ("not found", "no such file", "enoent", "404")),
-        ("agent_failed", "Agent failed", ("task.failed", "task.interrupted", "agent_task")),
-        ("tool_error", "Tool error", ("tool.completed", "tool.started")),
+        ("permission_error", "权限问题", ("permission denied", "eacces", "operation not permitted", "forbidden")),
+        ("auth_error", "认证/API Key 问题", ("unauthorized", "401", "api key", "invalid token", "authentication")),
+        ("rate_limit", "限流", ("rate limit", "429", "too many requests", "quota")),
+        ("timeout", "超时", ("timeout", "timed out", "deadline exceeded")),
+        ("network_error", "网络问题", ("network", "connection refused", "connection reset", "dns", "ssl", "tls")),
+        ("not_found", "资源不存在", ("not found", "no such file", "enoent", "404")),
+        ("agent_failed", "Agent 任务失败", ("task.failed", "task.interrupted", "agent_task")),
+        ("tool_error", "工具执行错误", ("tool.completed", "tool.started")),
     ]
     for code, label, needles in rules:
         if any(needle in text for needle in needles):
             return {"code": code, "label": label}
-    return {"code": "unknown", "label": "Unknown"}
+    return {"code": "unknown", "label": "未分类"}
 
 
 def _decorate_failure(row: dict[str, Any]) -> dict[str, Any]:

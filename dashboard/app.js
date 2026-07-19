@@ -14,20 +14,20 @@
   };
 
   const ranges = [
-    ["1h", "1 hour"],
-    ["24h", "24 hours"],
-    ["7d", "7 days"],
-    ["all", "All"],
+    ["1h", "1 小时"],
+    ["24h", "24 小时"],
+    ["7d", "7 天"],
+    ["all", "全部"],
   ];
 
   const eventLabels = {
-    "llm.requested": "LLM requested",
-    "llm.completed": "LLM completed",
-    "tool.completed": "Tool completed",
-    "skill.used": "Skill used",
-    "task.completed": "Task completed",
-    "task.failed": "Task failed",
-    "task.interrupted": "Task interrupted",
+    "llm.requested": "LLM 请求",
+    "llm.completed": "LLM 完成",
+    "tool.completed": "工具完成",
+    "skill.used": "Skill 使用",
+    "task.completed": "任务完成",
+    "task.failed": "任务失败",
+    "task.interrupted": "任务中断",
   };
 
   function escapeHtml(value) {
@@ -66,9 +66,10 @@
   }
 
   function statusLabel(value) {
-    if (value === "success") return "success";
-    if (value === "error") return "error";
-    if (value === "interrupted") return "interrupted";
+    if (value === "started") return "开始";
+    if (value === "success") return "成功";
+    if (value === "error") return "错误";
+    if (value === "interrupted") return "中断";
     return value || "-";
   }
 
@@ -141,7 +142,7 @@
   }
 
   function bars(rows, labelKey = "name") {
-    if (!rows || !rows.length) return `<div class="empty">No data yet.</div>`;
+    if (!rows || !rows.length) return `<div class="empty">暂无数据。</div>`;
     const max = Math.max(1, ...rows.map((row) => Number(row.count || 0)));
     return `<div class="bars">${rows.map((row) => {
       const label = row.label || row[labelKey] || row.name;
@@ -155,8 +156,8 @@
   }
 
   function toolTable(rows) {
-    if (!rows || !rows.length) return `<div class="empty">No tool calls recorded.</div>`;
-    return `<table><thead><tr><th>Tool</th><th>Calls</th><th>Errors</th><th>Avg</th><th>Max</th></tr></thead><tbody>
+    if (!rows || !rows.length) return `<div class="empty">暂无工具调用记录。</div>`;
+    return `<table><thead><tr><th>工具</th><th>调用次数</th><th>错误</th><th>平均耗时</th><th>最长耗时</th></tr></thead><tbody>
       ${rows.map((row) => `<tr>
         <td><code>${escapeHtml(row.name)}</code></td>
         <td>${fmtNumber(row.count)}</td>
@@ -168,8 +169,8 @@
   }
 
   function skillTable(rows) {
-    if (!rows || !rows.length) return `<div class="empty">No skill usage recorded.</div>`;
-    return `<table><thead><tr><th>Skill</th><th>Uses</th><th>Errors</th><th>Last seen</th></tr></thead><tbody>
+    if (!rows || !rows.length) return `<div class="empty">暂无 Skill 使用记录。</div>`;
+    return `<table><thead><tr><th>Skill</th><th>使用次数</th><th>错误</th><th>最近出现</th></tr></thead><tbody>
       ${rows.map((row) => `<tr>
         <td><code>${escapeHtml(row.name)}</code></td>
         <td>${fmtNumber(row.count)}</td>
@@ -180,8 +181,8 @@
   }
 
   function traceTable(rows) {
-    if (!rows || !rows.length) return `<div class="empty">No traces recorded.</div>`;
-    return `<table class="clickable"><thead><tr><th>Trace</th><th>Events</th><th>Tools</th><th>Skills</th><th>Errors</th><th>Last seen</th></tr></thead><tbody>
+    if (!rows || !rows.length) return `<div class="empty">暂无 trace 记录。</div>`;
+    return `<table class="clickable"><thead><tr><th>Trace</th><th>事件数</th><th>工具</th><th>Skills</th><th>错误</th><th>最近出现</th></tr></thead><tbody>
       ${rows.map((row) => `<tr data-trace-id="${escapeHtml(row.trace_id)}" class="${row.trace_id === state.selectedTraceId ? "selected" : ""}">
         <td><code title="${escapeHtml(row.trace_id)}">${shortId(row.trace_id)}</code></td>
         <td>${fmtNumber(row.events)}</td>
@@ -194,11 +195,11 @@
   }
 
   function failureTable(rows) {
-    if (!rows || !rows.length) return `<div class="empty">No failures recorded.</div>`;
-    return `<table class="clickable"><thead><tr><th>Time</th><th>Category</th><th>Event</th><th>Name</th><th>Trace</th></tr></thead><tbody>
+    if (!rows || !rows.length) return `<div class="empty">暂无失败记录。</div>`;
+    return `<table class="clickable"><thead><tr><th>时间</th><th>分类</th><th>事件</th><th>名称</th><th>Trace</th></tr></thead><tbody>
       ${rows.map((row) => `<tr data-trace-id="${escapeHtml(row.trace_id)}">
         <td>${dateShort(row.created_at)}</td>
-        <td class="error">${escapeHtml(row.failure_category ? row.failure_category.label : "Unknown")}</td>
+        <td class="error">${escapeHtml(row.failure_category ? row.failure_category.label : "未分类")}</td>
         <td>${escapeHtml(eventLabel(row.event_type))}</td>
         <td><code>${escapeHtml(row.name || "agent_task")}</code></td>
         <td><code>${shortId(row.trace_id)}</code></td>
@@ -209,16 +210,16 @@
   function traceDetail() {
     const detail = state.trace;
     if (!detail || !detail.events || !detail.events.length) {
-      return `<div class="empty">Select a trace to inspect the timeline.</div>`;
+      return `<div class="empty">选择一条 trace 查看完整时间线。</div>`;
     }
     const summary = detail.summary || {};
     return `<div class="trace-detail">
       <div class="trace-summary">
         ${kpi("Trace", shortId(summary.trace_id))}
-        ${kpi("Events", fmtNumber(summary.events))}
-        ${kpi("Tools", fmtNumber(summary.tools))}
-        ${kpi("Errors", fmtNumber(summary.errors))}
-        ${kpi("Observed", fmtMs(summary.observed_duration_ms))}
+        ${kpi("事件", fmtNumber(summary.events))}
+        ${kpi("工具", fmtNumber(summary.tools))}
+        ${kpi("错误", fmtNumber(summary.errors))}
+        ${kpi("观测耗时", fmtMs(summary.observed_duration_ms))}
       </div>
       <div class="timeline">
         ${detail.events.map((row) => `<div class="timeline-item ${row.status === "error" ? "failed" : ""}">
@@ -251,41 +252,41 @@
       <header class="hero">
         <div>
           <p class="eyebrow">Agent Observability Portfolio Demo</p>
-          <h1>Hermes Agent Observability</h1>
-          <p class="subtitle">Trace timelines, tool calls, skill usage, failure categories, and exportable runtime events.</p>
+          <h1>Hermes Agent 观测看板</h1>
+          <p class="subtitle">展示 trace 时间线、工具调用、Skill 使用、失败分类和可导出的运行事件。</p>
         </div>
         <div class="actions">
           <div class="ranges">${ranges.map(([key, label]) => `<button data-range="${key}" class="${state.range === key ? "active" : ""}">${label}</button>`).join("")}</div>
-          <button data-action="refresh">${state.loading ? "Refreshing" : "Refresh"}</button>
-          <button data-action="export">Export JSON</button>
-          <button data-action="reset">Reset demo</button>
+          <button data-action="refresh">${state.loading ? "刷新中" : "刷新"}</button>
+          <button data-action="export">导出 JSON</button>
+          <button data-action="reset">重置样例</button>
         </div>
       </header>
       ${state.error ? `<div class="banner error">${escapeHtml(state.error)}</div>` : ""}
-      ${state.exportPath ? `<div class="banner">Exported to <code>${escapeHtml(state.exportPath)}</code></div>` : ""}
+      ${state.exportPath ? `<div class="banner">已导出到 <code>${escapeHtml(state.exportPath)}</code></div>` : ""}
       <section class="kpis">
-        ${kpi("Events", fmtNumber(totals.events))}
-        ${kpi("Traces", fmtNumber(totals.traces))}
-        ${kpi("Tool calls", fmtNumber(totals.tools))}
-        ${kpi("Skill uses", fmtNumber(totals.skills))}
-        ${kpi("Failures", fmtNumber(totals.failures))}
-        ${kpi("Avg LLM", fmtMs(totals.avg_llm_ms))}
+        ${kpi("事件总数", fmtNumber(totals.events))}
+        ${kpi("Trace 数", fmtNumber(totals.traces))}
+        ${kpi("工具调用", fmtNumber(totals.tools))}
+        ${kpi("Skill 使用", fmtNumber(totals.skills))}
+        ${kpi("失败次数", fmtNumber(totals.failures))}
+        ${kpi("LLM 平均耗时", fmtMs(totals.avg_llm_ms))}
       </section>
       <section class="grid">
-        ${panel("Event mix", bars(data.event_types))}
-        ${panel("Failure categories", bars(data.failure_categories, "code"))}
+        ${panel("事件类型分布", bars(data.event_types))}
+        ${panel("失败原因分类", bars(data.failure_categories, "code"))}
       </section>
       <section class="grid traces">
-        ${panel("Recent traces", traceTable(data.traces))}
-        ${panel("Trace detail", traceDetail())}
+        ${panel("最近 Trace", traceTable(data.traces))}
+        ${panel("Trace 详情", traceDetail())}
       </section>
       <section class="grid">
-        ${panel("Tool performance", toolTable(data.tools))}
-        ${panel("Skill usage", skillTable(data.skills))}
+        ${panel("工具性能", toolTable(data.tools))}
+        ${panel("Skill 使用", skillTable(data.skills))}
       </section>
       <section class="grid">
-        ${panel("Failures", failureTable(data.failures))}
-        ${panel("Recent events", recentEvents())}
+        ${panel("失败记录", failureTable(data.failures))}
+        ${panel("最近事件", recentEvents())}
       </section>
       <footer><code>SQLite: ${escapeHtml(data.paths ? data.paths.sqlite : "")}</code></footer>
     `;
@@ -293,8 +294,8 @@
   }
 
   function recentEvents() {
-    if (!state.events.length) return `<div class="empty">No events yet.</div>`;
-    return `<table><thead><tr><th>Time</th><th>Type</th><th>Name</th><th>Status</th></tr></thead><tbody>
+    if (!state.events.length) return `<div class="empty">暂无事件。</div>`;
+    return `<table><thead><tr><th>时间</th><th>类型</th><th>名称</th><th>状态</th></tr></thead><tbody>
       ${state.events.slice(0, 12).map((row) => `<tr>
         <td>${dateShort(row.created_at)}</td>
         <td>${escapeHtml(eventLabel(row.event_type))}</td>

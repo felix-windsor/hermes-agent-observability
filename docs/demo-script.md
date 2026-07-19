@@ -1,39 +1,52 @@
-# Demo Script
+# 面试展示脚本
 
-Use this short flow in an interview or portfolio walkthrough.
+这个脚本用于面试或作品集 walkthrough。
 
-1. Start the app:
+## 1. 启动项目
 
 ```bash
 uvicorn server.main:app --reload --port 9120
 ```
 
-2. Open the dashboard:
+打开：
 
 ```text
 http://127.0.0.1:9120
 ```
 
-3. Explain the problem:
+## 2. 先讲问题
 
-Agent systems are hard to debug because a final answer hides the chain of LLM
-calls, tools, skills, retries, failures, and latency.
+Agent 系统很难排查，因为最终回答会隐藏中间链路：LLM 调用、工具调用、Skill 触发、重试、失败和耗时都不直观。
 
-4. Show the observability model:
+## 3. 讲核心设计
 
-Every runtime step is converted into an event with a trace ID. Events are stored
-as JSONL for portability and SQLite for dashboard queries.
+我把 Agent 的每个关键运行步骤转换成结构化事件，并用 `trace_id` 串起来。
 
-5. Walk through the dashboard:
+事件同时写入：
 
-- Use the range picker to switch between 1 hour, 24 hours, 7 days, and all time.
-- Point at KPIs for health and latency.
-- Open a trace and show the timeline.
-- Show failure categories and how they guide debugging.
-- Export JSON to show the data can feed offline analysis.
+- JSONL：方便导出和离线分析。
+- SQLite：方便本地看板快速查询。
 
-6. Connect it back to the real integration:
+## 4. 演示看板
 
-The standalone dashboard is extracted from a real Hermes Agent plugin, while the
-Hermes branch demonstrates production hooks for LLM calls, tool execution,
-skills, and task outcomes.
+可以按这个顺序讲：
+
+- 切换时间范围：1 小时、24 小时、7 天、全部。
+- 看 KPI：事件数、trace 数、工具调用、失败次数、LLM 平均耗时。
+- 打开一条 trace，展示完整时间线。
+- 看失败原因分类，说明它如何帮助定位问题。
+- 看工具性能，说明如何发现慢工具或高错误率工具。
+- 导出 JSON，说明这些数据可以进入后续测评或离线分析。
+
+## 5. 连接到真实项目
+
+这个独立仓库是展示版；真实集成版本在 Hermes Agent fork 分支里。真实版本通过 hook 采集 LLM、Tool、Skill 和任务结果事件。
+
+可以这样总结：
+
+```text
+观测解决 Agent 黑盒问题
+Trace 复盘单次任务链路
+失败分类和工具性能帮助定位优化点
+本地存储让它可解释、可导出、可继续扩展成测评体系
+```
