@@ -66,6 +66,66 @@ SCENARIOS = [
         ],
     },
 ]
+AGENTS = [
+    {
+        "id": "engineering",
+        "label": "研发部通用 Agent",
+        "department": "研发部",
+        "task_ids": [
+            "task-code-auth-refresh",
+            "task-code-cache-bug",
+            "task-code-flaky-test",
+        ],
+    },
+    {
+        "id": "platform",
+        "label": "平台工程部通用 Agent",
+        "department": "平台工程部",
+        "task_ids": [
+            "task-code-hook-refactor",
+            "task-permission-dashboard-log",
+            "task-permission-pycache",
+            "task-permission-sqlite",
+            "task-permission-readonly",
+            "task-timeout-npm-install",
+        ],
+    },
+    {
+        "id": "product_ops",
+        "label": "产品运营部通用 Agent",
+        "department": "产品运营部",
+        "task_ids": [
+            "task-code-dashboard-copy",
+            "task-skill-readme-polish",
+            "task-skill-architecture",
+            "task-skill-review",
+        ],
+    },
+    {
+        "id": "data_ops",
+        "label": "数据运营部通用 Agent",
+        "department": "数据运营部",
+        "task_ids": [
+            "task-timeout-langfuse-export",
+            "task-timeout-report-export",
+        ],
+    },
+    {
+        "id": "strategy",
+        "label": "战略分析部通用 Agent",
+        "department": "战略分析部",
+        "task_ids": [
+            "task-timeout-web-search",
+            "task-skill-research-patterns",
+        ],
+    },
+    {
+        "id": "sales_enablement",
+        "label": "售前支持部通用 Agent",
+        "department": "售前支持部",
+        "task_ids": ["task-skill-demo-script"],
+    },
+]
 
 
 @asynccontextmanager
@@ -106,7 +166,17 @@ def _scenario_task_ids(scenario: str = "all") -> list[str]:
     return []
 
 
-def _filter_clauses(range_name: str = "24h", scenario: str = "all") -> tuple[list[str], list[Any]]:
+def _agent_task_ids(agent: str = "all") -> list[str]:
+    value = (agent or "all").strip().lower()
+    if value in {"all", "全部"}:
+        return []
+    for item in AGENTS:
+        if item["id"] == value:
+            return list(item["task_ids"])
+    return []
+
+
+def _filter_clauses(range_name: str = "24h", scenario: str = "all", agent: str = "all") -> tuple[list[str], list[Any]]:
     clauses: list[str] = []
     params: list[Any] = []
     start = _range_start(range_name)
@@ -117,18 +187,22 @@ def _filter_clauses(range_name: str = "24h", scenario: str = "all") -> tuple[lis
     if task_ids:
         clauses.append("task_id IN (" + ",".join("?" for _ in task_ids) + ")")
         params.extend(task_ids)
+    agent_task_ids = _agent_task_ids(agent)
+    if agent_task_ids:
+        clauses.append("task_id IN (" + ",".join("?" for _ in agent_task_ids) + ")")
+        params.extend(agent_task_ids)
     return clauses, params
 
 
-def _where_filters(range_name: str = "24h", scenario: str = "all", prefix: str = "WHERE") -> tuple[str, list[Any]]:
-    clauses, params = _filter_clauses(range_name, scenario)
+def _where_filters(range_name: str = "24h", scenario: str = "all", agent: str = "all", prefix: str = "WHERE") -> tuple[str, list[Any]]:
+    clauses, params = _filter_clauses(range_name, scenario, agent)
     if not clauses:
         return "", []
     return f"{prefix} " + " AND ".join(clauses), params
 
 
-def _and_filters(range_name: str = "24h", scenario: str = "all") -> tuple[str, list[Any]]:
-    return _where_filters(range_name, scenario, prefix="AND")
+def _and_filters(range_name: str = "24h", scenario: str = "all", agent: str = "all") -> tuple[str, list[Any]]:
+    return _where_filters(range_name, scenario, agent, prefix="AND")
 
 
 def _payload(row: dict[str, Any]) -> dict[str, Any]:
@@ -356,21 +430,6 @@ def _build_trace_story(rows: list[dict[str, Any]], failures: list[dict[str, Any]
     }
 
 
-def _payload_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "y"}
-    return bool(value)
-
-
-def _payload_int(value: Any, default: int = 0) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
 def _payload_list(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(item) for item in value if str(item or "").strip()]
@@ -429,41 +488,16 @@ def _business_context(row: dict[str, Any]) -> dict[str, Any]:
         "agent_candidate": agent_candidate,
         "specialized_agent_candidate": str(payload.get("specialized_agent_candidate") or agent_candidate),
         "skill_bundle": skill_bundle,
-        "estimated_manual_minutes": _payload_int(payload.get("estimated_manual_minutes"), 20),
-        "human_intervention": _payload_bool(payload.get("human_intervention")),
-        "automation_fit": str(payload.get("automation_fit") or "medium"),
-        "risk_level": str(payload.get("risk_level") or "medium"),
     }
-
-
-def _risk_penalty(risk_level: str) -> int:
-    return {"low": 0, "medium": 5, "high": 18}.get((risk_level or "medium").lower(), 5)
-
-
-def _fit_bonus(automation_fit: str) -> int:
-    return {"high": 18, "medium": 10, "low": 2}.get((automation_fit or "medium").lower(), 10)
-
-
-def _risk_label(risk_level: str) -> str:
-    return {"low": "低", "medium": "中", "high": "高"}.get((risk_level or "medium").lower(), "中")
-
-
-def _opportunity_recommendation(score: int, risk_level: str, human_rate: float) -> str:
-    if score >= 82 and risk_level == "low":
-        return "优先沉淀为部门通用 Agent 内的全流程专项 Agent"
-    if score >= 72:
-        return "适合在部门通用 Agent 内做专项化试点"
-    if score >= 58 or human_rate > 0.35:
-        return "适合先做半自动专项流程"
-    return "继续观察，先补齐工具链和结构化数据"
 
 
 def _trace_business_rows(
     conn: sqlite3.Connection,
     range_name: str,
     scenario: str,
+    agent: str = "all",
 ) -> list[dict[str, Any]]:
-    where_sql, params = _where_filters(range_name, scenario)
+    where_sql, params = _where_filters(range_name, scenario, agent)
     return [
         _payload(row)
         for row in _rows(conn, f"""
@@ -495,6 +529,7 @@ def _business_traces(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
                 "tools": 0,
                 "skill_uses": 0,
                 "has_failure": False,
+                "has_intermediate_failure": False,
                 "task_success": False,
                 "task_failed": False,
                 "observed_duration_ms": 0,
@@ -511,6 +546,8 @@ def _business_traces(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             trace["observed_duration_ms"] += int(row["duration_ms"])
         if row.get("status") in {"error", "interrupted"} or row.get("event_type") in {"task.failed", "task.interrupted"}:
             trace["has_failure"] = True
+        if row.get("status") in {"error", "interrupted"} and row.get("event_type") not in {"task.failed", "task.interrupted"}:
+            trace["has_intermediate_failure"] = True
         if row.get("event_type") == "task.completed":
             trace["task_success"] = True
         if row.get("event_type") in {"task.failed", "task.interrupted"}:
@@ -522,9 +559,10 @@ def _automation_opportunities(
     conn: sqlite3.Connection,
     range_name: str,
     scenario: str,
+    agent: str = "all",
     limit: int = 8,
 ) -> list[dict[str, Any]]:
-    rows = _trace_business_rows(conn, range_name, scenario)
+    rows = _trace_business_rows(conn, range_name, scenario, agent)
     traces = _business_traces(rows)
 
     groups: dict[tuple[str, str, str], dict[str, Any]] = {}
@@ -543,13 +581,10 @@ def _automation_opportunities(
                 "agent_candidate": trace["agent_candidate"],
                 "specialized_agent_candidate": trace["specialized_agent_candidate"],
                 "skill_bundle": [],
-                "risk_level": trace["risk_level"],
-                "automation_fit": trace["automation_fit"],
                 "trace_count": 0,
                 "successes": 0,
-                "failure_traces": 0,
-                "human_interventions": 0,
-                "estimated_saved_minutes": 0,
+                "final_failures": 0,
+                "intermediate_failure_traces": 0,
                 "tool_calls": 0,
                 "skill_uses": 0,
                 "observed_duration_ms": 0,
@@ -559,19 +594,14 @@ def _automation_opportunities(
         )
         group["trace_count"] += 1
         group["successes"] += 1 if trace["task_success"] and not trace["task_failed"] else 0
-        group["failure_traces"] += 1 if trace["has_failure"] else 0
-        group["human_interventions"] += 1 if trace["human_intervention"] else 0
-        group["estimated_saved_minutes"] += trace["estimated_manual_minutes"]
+        group["final_failures"] += 1 if trace["task_failed"] else 0
+        group["intermediate_failure_traces"] += 1 if trace["has_intermediate_failure"] else 0
         group["tool_calls"] += trace["tools"]
         group["skill_uses"] += trace["skill_uses"]
         group["observed_duration_ms"] += trace["observed_duration_ms"]
         for skill in trace["skill_bundle"]:
             if skill not in group["skill_bundle"]:
                 group["skill_bundle"].append(skill)
-        if _risk_penalty(trace["risk_level"]) > _risk_penalty(group["risk_level"]):
-            group["risk_level"] = trace["risk_level"]
-        if _fit_bonus(trace["automation_fit"]) > _fit_bonus(group["automation_fit"]):
-            group["automation_fit"] = trace["automation_fit"]
         request = trace.get("user_request", "")
         if request and len(group["example_requests"]) < 2:
             group["example_requests"].append(request)
@@ -580,37 +610,25 @@ def _automation_opportunities(
     for group in groups.values():
         trace_count = max(1, int(group["trace_count"]))
         success_rate = group["successes"] / trace_count
-        failure_rate = group["failure_traces"] / trace_count
-        human_rate = group["human_interventions"] / trace_count
-        frequency_score = min(46, trace_count * 16)
-        time_score = min(22, group["estimated_saved_minutes"] / 4)
-        success_score = success_rate * 18
-        maturity_score = min(10, group["tool_calls"] * 1.5 + group["skill_uses"] * 2)
-        score = round(
-            max(
-                0,
-                min(
-                    100,
-                    frequency_score
-                    + time_score
-                    + success_score
-                    + maturity_score
-                    + _fit_bonus(group["automation_fit"])
-                    - failure_rate * 12
-                    - human_rate * 4
-                    - _risk_penalty(group["risk_level"]),
-                ),
-            )
-        )
+        final_failure_rate = group["final_failures"] / trace_count
+        intermediate_failure_rate = group["intermediate_failure_traces"] / trace_count
+        avg_duration_ms = round(group["observed_duration_ms"] / trace_count, 1)
+        avg_tool_calls = round(group["tool_calls"] / trace_count, 1)
         group["success_rate"] = round(success_rate, 3)
-        group["failure_rate"] = round(failure_rate, 3)
-        group["human_intervention_rate"] = round(human_rate, 3)
-        group["opportunity_score"] = score
-        group["risk_label"] = _risk_label(group["risk_level"])
-        group["recommendation"] = _opportunity_recommendation(score, group["risk_level"], human_rate)
+        group["final_failure_rate"] = round(final_failure_rate, 3)
+        group["intermediate_failure_rate"] = round(intermediate_failure_rate, 3)
+        group["avg_duration_ms"] = avg_duration_ms
+        group["avg_tool_calls"] = avg_tool_calls
+        if trace_count >= 2 and success_rate >= 0.8 and intermediate_failure_rate <= 0.3:
+            recommendation = "高频且链路稳定，可进入专项 Agent 设计"
+        elif trace_count >= 2 and intermediate_failure_rate > 0.3:
+            recommendation = "高频但中间失败集中，先治理失败原因"
+        else:
+            recommendation = "频率不足，继续观察"
+        group["recommendation"] = recommendation
         group["evidence"] = (
-            f"频率 {trace_count} 条 trace，成功率 {round(success_rate * 100)}%，"
-            f"预计节省 {group['estimated_saved_minutes']} 分钟。"
+            f"{trace_count} 条 trace，最终成功率 {round(success_rate * 100)}%，"
+            f"中间失败 {group['intermediate_failure_traces']} 次。"
         )
         group["positioning"] = (
             f"在「{group['department_agent']}」内部，把「{group['capability_candidate']}」"
@@ -620,7 +638,7 @@ def _automation_opportunities(
 
     return sorted(
         opportunities,
-        key=lambda item: (-item["opportunity_score"], -item["estimated_saved_minutes"], item["department_label"]),
+        key=lambda item: (-item["trace_count"], -item["success_rate"], item["intermediate_failure_rate"], item["department_label"]),
     )[:limit]
 
 
@@ -628,9 +646,10 @@ def _skill_refinement_priorities(
     conn: sqlite3.Connection,
     range_name: str,
     scenario: str,
+    agent: str = "all",
     limit: int = 8,
 ) -> list[dict[str, Any]]:
-    traces = _business_traces(_trace_business_rows(conn, range_name, scenario))
+    traces = _business_traces(_trace_business_rows(conn, range_name, scenario, agent))
     groups: dict[tuple[str, str], dict[str, Any]] = {}
     for trace in traces.values():
         for skill in trace["skill_bundle"]:
@@ -645,8 +664,10 @@ def _skill_refinement_priorities(
                     "trace_count": 0,
                     "primary_count": 0,
                     "successes": 0,
-                    "failure_traces": 0,
-                    "estimated_saved_minutes": 0,
+                    "final_failures": 0,
+                    "intermediate_failure_traces": 0,
+                    "tool_calls": 0,
+                    "observed_duration_ms": 0,
                     "workflows": [],
                     "specialized_agents": [],
                     "primary_trace_id": trace["trace_id"],
@@ -655,8 +676,10 @@ def _skill_refinement_priorities(
             group["trace_count"] += 1
             group["primary_count"] += 1 if skill == trace["candidate_skill"] else 0
             group["successes"] += 1 if trace["task_success"] and not trace["task_failed"] else 0
-            group["failure_traces"] += 1 if trace["has_failure"] else 0
-            group["estimated_saved_minutes"] += trace["estimated_manual_minutes"]
+            group["final_failures"] += 1 if trace["task_failed"] else 0
+            group["intermediate_failure_traces"] += 1 if trace["has_intermediate_failure"] else 0
+            group["tool_calls"] += trace["tools"]
+            group["observed_duration_ms"] += trace["observed_duration_ms"]
             if trace["workflow_label"] not in group["workflows"]:
                 group["workflows"].append(trace["workflow_label"])
             if trace["specialized_agent_candidate"] not in group["specialized_agents"]:
@@ -666,41 +689,38 @@ def _skill_refinement_priorities(
     for group in groups.values():
         trace_count = max(1, int(group["trace_count"]))
         success_rate = group["successes"] / trace_count
-        failure_rate = group["failure_traces"] / trace_count
-        frequency_score = min(65, trace_count * 18)
-        reuse_score = min(15, len(group["workflows"]) * 5)
-        time_score = min(12, group["estimated_saved_minutes"] / 8)
-        success_score = success_rate * 12
-        score = round(max(0, min(100, frequency_score + reuse_score + time_score + success_score - failure_rate * 8)))
+        final_failure_rate = group["final_failures"] / trace_count
+        intermediate_failure_rate = group["intermediate_failure_traces"] / trace_count
+        avg_duration_ms = round(group["observed_duration_ms"] / trace_count, 1)
+        avg_tool_calls = round(group["tool_calls"] / trace_count, 1)
         group["success_rate"] = round(success_rate, 3)
-        group["failure_rate"] = round(failure_rate, 3)
-        group["refinement_score"] = score
+        group["final_failure_rate"] = round(final_failure_rate, 3)
+        group["intermediate_failure_rate"] = round(intermediate_failure_rate, 3)
+        group["avg_duration_ms"] = avg_duration_ms
+        group["avg_tool_calls"] = avg_tool_calls
         group["recommendation"] = (
-            "高频核心 Skill，优先拆细流程和工具边界"
+            "高频且覆盖稳定流程，适合下钻设计"
             if trace_count >= 3
             else "频率开始出现，继续观察并补充结构化埋点"
         )
         group["evidence"] = (
             f"被 {trace_count} 条 trace 使用，覆盖 {len(group['workflows'])} 个流程，"
-            f"预计节省 {group['estimated_saved_minutes']} 分钟。"
+            f"最终成功率 {round(success_rate * 100)}%。"
         )
         priorities.append(group)
 
     return sorted(
         priorities,
-        key=lambda item: (-item["trace_count"], -item["refinement_score"], -item["primary_count"], item["skill"]),
+        key=lambda item: (-item["trace_count"], -item["success_rate"], item["intermediate_failure_rate"], -item["primary_count"], item["skill"]),
     )[:limit]
 
 
 def _trace_automation_opportunity(rows: list[dict[str, Any]], failures: list[dict[str, Any]]) -> dict[str, Any]:
     context = _business_context(rows[0])
     failed = bool(failures or any(row.get("event_type") == "task.failed" for row in rows))
-    fit_text = {"high": "高", "medium": "中", "low": "低"}.get(context["automation_fit"], "中")
     status_text = "需要先降低失败率" if failed else "可进入候选池"
     return {
         **context,
-        "risk_label": _risk_label(context["risk_level"]),
-        "automation_fit_label": fit_text,
         "recommendation": (
             f"归属「{context['department_agent']}」，可把「{context['capability_candidate']}」"
             f"细化为「{context['specialized_agent_candidate']}」，{status_text}。"
@@ -723,9 +743,13 @@ def _has_success_after_failure(rows: list[dict[str, Any]]) -> bool:
 
 
 @app.get("/api/overview")
-def overview(range: str = Query("24h"), scenario: str = Query("all")) -> dict[str, Any]:
-    where_sql, params = _where_filters(range, scenario)
-    and_sql, and_params = _and_filters(range, scenario)
+def overview(
+    range: str = Query("24h"),
+    scenario: str = Query("all"),
+    agent: str = Query("all"),
+) -> dict[str, Any]:
+    where_sql, params = _where_filters(range, scenario, agent)
+    and_sql, and_params = _and_filters(range, scenario, agent)
     with store.connect() as conn:
         totals = dict(conn.execute(
             f"""
@@ -824,13 +848,15 @@ def overview(range: str = Query("24h"), scenario: str = Query("all")) -> dict[st
             ORDER BY last_seen DESC
             LIMIT 12
             """, params)
-        opportunities = _automation_opportunities(conn, range, scenario)
-        skill_priorities = _skill_refinement_priorities(conn, range, scenario)
+        opportunities = _automation_opportunities(conn, range, scenario, agent)
+        skill_priorities = _skill_refinement_priorities(conn, range, scenario, agent)
 
     return {
         "range": range,
         "scenario": scenario,
+        "agent": agent,
         "scenarios": [{key: value for key, value in item.items() if key != "task_ids"} for item in SCENARIOS],
+        "agents": [{key: value for key, value in item.items() if key != "task_ids"} for item in AGENTS],
         "paths": {"sqlite": str(store.sqlite_path()), "jsonl": str(store.events_jsonl_path())},
         "totals": totals,
         "event_types": event_types,
@@ -849,8 +875,9 @@ def events(
     limit: int = Query(30, ge=1, le=500),
     range: str = Query("24h"),
     scenario: str = Query("all"),
+    agent: str = Query("all"),
 ) -> dict[str, Any]:
-    where_sql, params = _where_filters(range, scenario)
+    where_sql, params = _where_filters(range, scenario, agent)
     with store.connect() as conn:
         result = [
             _payload(row)
@@ -918,11 +945,18 @@ def export(
     limit: int = Query(1000, ge=1, le=5000),
     range: str = Query("24h"),
     scenario: str = Query("all"),
+    agent: str = Query("all"),
 ) -> dict[str, str]:
+    task_ids = _scenario_task_ids(scenario)
+    agent_task_ids = _agent_task_ids(agent)
+    if task_ids and agent_task_ids:
+        task_ids = [task_id for task_id in task_ids if task_id in set(agent_task_ids)]
+    elif agent_task_ids:
+        task_ids = agent_task_ids
     path = store.export_events(
         limit=_limit(limit, default=1000, maximum=5000),
         started_after=_range_start(range),
-        task_ids=_scenario_task_ids(scenario),
+        task_ids=task_ids,
     )
     return {"path": str(path)}
 
@@ -932,11 +966,18 @@ def export_download(
     limit: int = Query(1000, ge=1, le=5000),
     range: str = Query("24h"),
     scenario: str = Query("all"),
+    agent: str = Query("all"),
 ) -> FileResponse:
+    task_ids = _scenario_task_ids(scenario)
+    agent_task_ids = _agent_task_ids(agent)
+    if task_ids and agent_task_ids:
+        task_ids = [task_id for task_id in task_ids if task_id in set(agent_task_ids)]
+    elif agent_task_ids:
+        task_ids = agent_task_ids
     path = store.export_events(
         limit=_limit(limit, default=1000, maximum=5000),
         started_after=_range_start(range),
-        task_ids=_scenario_task_ids(scenario),
+        task_ids=task_ids,
     )
     return FileResponse(
         path,

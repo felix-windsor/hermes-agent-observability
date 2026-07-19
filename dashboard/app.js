@@ -5,7 +5,9 @@
   const state = {
     range: "24h",
     scenario: "all",
+    agent: "engineering",
     scenarios: [],
+    agents: [],
     overview: null,
     events: [],
     trace: null,
@@ -28,6 +30,14 @@
     { id: "permission", label: "权限失败排查", description: "权限错误、修复动作和重试结果" },
     { id: "timeout", label: "工具超时重试", description: "远程请求超时和后续成功重试" },
     { id: "skill", label: "Skill 触发分析", description: "研究类任务中的 Skill 使用链路" },
+  ];
+  const defaultAgents = [
+    { id: "engineering", label: "研发部通用 Agent", department: "研发部" },
+    { id: "platform", label: "平台工程部通用 Agent", department: "平台工程部" },
+    { id: "product_ops", label: "产品运营部通用 Agent", department: "产品运营部" },
+    { id: "data_ops", label: "数据运营部通用 Agent", department: "数据运营部" },
+    { id: "strategy", label: "战略分析部通用 Agent", department: "战略分析部" },
+    { id: "sales_enablement", label: "售前支持部通用 Agent", department: "售前支持部" },
   ];
 
   const eventLabels = {
@@ -113,14 +123,15 @@
     state.exportMessage = "";
     render();
     try {
-      const query = "?range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario);
+      const query = "?range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario) + "&agent=" + encodeURIComponent(state.agent);
       const [overview, recent] = await Promise.all([
         getJSON("/api/overview" + query),
-        getJSON("/api/events?limit=30&range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario)),
+        getJSON("/api/events?limit=30&range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario) + "&agent=" + encodeURIComponent(state.agent)),
       ]);
       state.overview = overview;
       state.events = recent.events || [];
       state.scenarios = overview.scenarios || defaultScenarios;
+      state.agents = overview.agents || defaultAgents;
       if (!state.selectedTraceId && overview.traces && overview.traces.length) {
         state.selectedTraceId = overview.traces[0].trace_id;
       }
@@ -148,7 +159,7 @@
   }
 
   async function exportEvents() {
-    const url = "/api/export/download?range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario) + "&limit=1000";
+    const url = "/api/export/download?range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario) + "&agent=" + encodeURIComponent(state.agent) + "&limit=1000";
     const link = document.createElement("a");
     link.href = url;
     link.download = "agent-observability-" + state.range + ".json";
@@ -168,6 +179,13 @@
 
   async function changeScenario(scenario) {
     state.scenario = scenario;
+    state.selectedTraceId = "";
+    state.trace = null;
+    await load();
+  }
+
+  async function changeAgent(agent) {
+    state.agent = agent;
     state.selectedTraceId = "";
     state.trace = null;
     await load();
@@ -225,19 +243,15 @@
 
   function skillPriorityTable(rows) {
     if (!rows || !rows.length) return `<div class="empty">暂无高频 Skill 数据。</div>`;
-    return `<table class="clickable opportunity-table"><thead><tr><th>部门通用 Agent</th><th>高频 Skill</th><th>调用频率</th><th>作为主 Skill</th><th>覆盖流程</th><th>成功率</th><th>节省时间</th><th>细化优先级</th><th>建议</th></tr></thead><tbody>
+    return `<table class="clickable opportunity-table"><thead><tr><th>高频 Skill</th><th>调用频率</th><th>覆盖流程</th><th>最终成功率</th><th>中间失败</th><th>平均耗时</th><th>工具调用</th><th>下钻判断</th></tr></thead><tbody>
       ${rows.map((row) => `<tr data-trace-id="${escapeHtml(row.primary_trace_id)}">
-        <td>
-          <strong>${escapeHtml(row.department_agent || row.department_label)}</strong>
-          <small>${escapeHtml(row.department_label)}</small>
-        </td>
         <td><code>${escapeHtml(row.skill)}</code></td>
         <td><strong>${fmtNumber(row.trace_count)}</strong> 次</td>
-        <td>${fmtNumber(row.primary_count)} 次</td>
         <td title="${escapeHtml((row.workflows || []).join(" / "))}">${escapeHtml(compactList(row.workflows))}</td>
         <td>${fmtPercent(row.success_rate)}</td>
-        <td>${fmtNumber(row.estimated_saved_minutes)} 分钟</td>
-        <td><span class="score-pill">${fmtNumber(row.refinement_score)}</span></td>
+        <td>${fmtNumber(row.intermediate_failure_traces)} 次 / ${fmtPercent(row.intermediate_failure_rate)}</td>
+        <td>${fmtMs(row.avg_duration_ms)}</td>
+        <td>${fmtNumber(row.tool_calls)}</td>
         <td title="${escapeHtml(row.evidence || "")}">${escapeHtml(row.recommendation)}</td>
       </tr>`).join("")}
     </tbody></table>`;
@@ -251,23 +265,17 @@
 
   function opportunityTable(rows) {
     if (!rows || !rows.length) return `<div class="empty">暂无部门内专项化候选。</div>`;
-    return `<table class="clickable opportunity-table"><thead><tr><th>部门通用 Agent</th><th>可细化 Skill</th><th>Skill 组合</th><th>全流程专项 Agent</th><th>Trace</th><th>成功率</th><th>节省时间</th><th>风险</th><th>机会分</th><th>落地建议</th></tr></thead><tbody>
+    return `<table class="clickable opportunity-table"><thead><tr><th>业务流程</th><th>高频 Skill</th><th>Skill 组合</th><th>全流程专项 Agent</th><th>Trace 数</th><th>最终成功率</th><th>中间失败</th><th>平均耗时</th><th>工具调用</th><th>下钻判断</th></tr></thead><tbody>
       ${rows.map((row) => `<tr data-trace-id="${escapeHtml(row.primary_trace_id)}">
-        <td>
-          <strong>${escapeHtml(row.department_agent || row.department_label)}</strong>
-          <small>${escapeHtml(row.department_label)}</small>
-        </td>
-        <td>
-          <strong>${escapeHtml(row.capability_candidate || row.workflow_label)}</strong>
-          <small>${escapeHtml(row.candidate_skill)}</small>
-        </td>
+        <td>${escapeHtml(row.workflow_label)}</td>
+        <td><code>${escapeHtml(row.candidate_skill)}</code></td>
         <td>${skillBundle(row.skill_bundle)}</td>
         <td>${escapeHtml(row.specialized_agent_candidate || row.agent_candidate)}</td>
         <td>${fmtNumber(row.trace_count)}</td>
         <td>${fmtPercent(row.success_rate)}</td>
-        <td>${fmtNumber(row.estimated_saved_minutes)} 分钟</td>
-        <td>${escapeHtml(row.risk_label)}</td>
-        <td><span class="score-pill">${fmtNumber(row.opportunity_score)}</span></td>
+        <td>${fmtNumber(row.intermediate_failure_traces)} 次 / ${fmtPercent(row.intermediate_failure_rate)}</td>
+        <td>${fmtMs(row.avg_duration_ms)}</td>
+        <td>${fmtNumber(row.tool_calls)}</td>
         <td title="${escapeHtml(row.evidence || "")}">${escapeHtml(row.recommendation)}</td>
       </tr>`).join("")}
     </tbody></table>`;
@@ -335,8 +343,6 @@
           <b>${escapeHtml(opportunity.department_agent || opportunity.department_label)}</b>
           <b>${escapeHtml(opportunity.capability_candidate || opportunity.candidate_skill)}</b>
           <b>${escapeHtml(opportunity.workflow_label)}</b>
-          <b>自动化适配：${escapeHtml(opportunity.automation_fit_label)}</b>
-          <b>风险：${escapeHtml(opportunity.risk_label)}</b>
         </div>
       </div>` : ""}
       <div class="trace-summary">
@@ -374,11 +380,13 @@
     const data = state.overview || { totals: {}, event_types: [], failure_categories: [], skill_priorities: [], opportunities: [], traces: [], tools: [], skills: [], failures: [] };
     const totals = data.totals || {};
     const scenarios = state.scenarios.length ? state.scenarios : defaultScenarios;
+    const agents = state.agents.length ? state.agents : defaultAgents;
+    const currentAgent = agents.find((item) => item.id === state.agent) || agents[0] || {};
     app.innerHTML = `
       <header class="hero">
         <div>
-          <h1>Hermes Agent 观测看板</h1>
-          <p class="subtitle">展示 trace 时间线、工具调用、Skill 高频口径、失败分类和部门内专项化机会。</p>
+          <h1>${escapeHtml(currentAgent.label || "单部门 Agent 观测看板")}</h1>
+          <p class="subtitle">单部门 Agent 视角：展示 trace 时间线、工具调用、Skill 高频口径、失败分类和专项化下钻判断。</p>
           <p class="data-note">当前数据为脱敏模拟样例，不包含真实组织、用户、内部系统表名或原始业务数据。</p>
         </div>
         <div class="actions">
@@ -389,6 +397,12 @@
         </div>
       </header>
       <section class="scenario-strip">
+        ${agents.map((item) => `<button data-agent="${escapeHtml(item.id)}" class="${state.agent === item.id ? "active" : ""}">
+          <strong>${escapeHtml(item.label)}</strong>
+          <span>${escapeHtml(item.department || "")}</span>
+        </button>`).join("")}
+      </section>
+      <section class="scenario-strip compact">
         ${scenarios.map((item) => `<button data-scenario="${escapeHtml(item.id)}" class="${state.scenario === item.id ? "active" : ""}">
           <strong>${escapeHtml(item.label)}</strong>
           <span>${escapeHtml(item.description || "")}</span>
@@ -405,10 +419,10 @@
         ${kpi("LLM 平均耗时", fmtMs(totals.avg_llm_ms))}
       </section>
       <section class="single">
-        ${panel("高频 Skill 细化优先级", skillPriorityTable(data.skill_priorities))}
+        ${panel("高频 Skill 下钻分析", skillPriorityTable(data.skill_priorities))}
       </section>
       <section class="single">
-        ${panel("部门内专项 Agent 候选", opportunityTable(data.opportunities))}
+        ${panel("专项 Agent 候选链路", opportunityTable(data.opportunities))}
       </section>
       <section class="grid">
         ${panel("事件类型分布", bars(data.event_types, "name", (row) => eventLabel(row.name)))}
@@ -457,6 +471,9 @@
     });
     document.querySelectorAll("[data-scenario]").forEach((button) => {
       button.addEventListener("click", () => changeScenario(button.dataset.scenario));
+    });
+    document.querySelectorAll("[data-agent]").forEach((button) => {
+      button.addEventListener("click", () => changeAgent(button.dataset.agent));
     });
     document.querySelectorAll("[data-trace-id]").forEach((row) => {
       row.addEventListener("click", () => loadTrace(row.dataset.traceId));

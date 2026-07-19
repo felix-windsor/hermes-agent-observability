@@ -30,9 +30,11 @@ def test_overview_contains_sample_data(monkeypatch, tmp_path):
     assert data["failure_categories"]
     assert data["failures"][0]["failure_category"]["suggestions"]
     assert data["opportunities"]
-    assert data["opportunities"][0]["opportunity_score"] > 0
+    assert "success_rate" in data["opportunities"][0]
+    assert "intermediate_failure_traces" in data["opportunities"][0]
     assert data["skill_priorities"]
     assert data["skill_priorities"][0]["trace_count"] >= data["skill_priorities"][-1]["trace_count"]
+    assert data["agents"]
     assert any(item["id"] == "permission" for item in data["scenarios"])
 
 
@@ -142,8 +144,14 @@ def test_automation_opportunities_rank_department_agent_candidates(monkeypatch, 
     assert "test-fix-skill" in engineering["skill_bundle"]
     assert "test-runner-skill" in engineering["skill_bundle"]
     assert engineering["trace_count"] >= 2
-    assert engineering["estimated_saved_minutes"] >= 70
-    assert "部门通用 Agent" in engineering["recommendation"]
+    assert engineering["success_rate"] > 0
+    assert engineering["avg_duration_ms"] > 0
+    assert engineering["tool_calls"] > 0
+    assert engineering["recommendation"] in {
+        "高频且链路稳定，可进入专项 Agent 设计",
+        "高频但中间失败集中，先治理失败原因",
+        "频率不足，继续观察",
+    }
     assert engineering["primary_trace_id"]
 
 
@@ -157,5 +165,17 @@ def test_skill_refinement_priorities_emphasize_frequency(monkeypatch, tmp_path):
 
     assert env_skill["trace_count"] == 4
     assert env_skill["department_agent"] == "平台工程部通用 Agent"
-    assert env_skill["refinement_score"] > 0
-    assert "频" in env_skill["recommendation"]
+    assert env_skill["intermediate_failure_traces"] > 0
+    assert env_skill["avg_duration_ms"] > 0
+    assert "下钻" in env_skill["recommendation"]
+
+
+def test_agent_filter_scopes_overview_to_single_department_agent(monkeypatch, tmp_path):
+    app, _store = fresh_app(monkeypatch, tmp_path)
+    client = TestClient(app)
+    overview = client.get("/api/overview?range=24h&scenario=all&agent=engineering").json()
+
+    assert overview["agent"] == "engineering"
+    assert overview["totals"]["traces"] == 3
+    assert all(row["task_id"].startswith("task-code-") for row in overview["traces"])
+    assert {item["department"] for item in overview["skill_priorities"]} == {"engineering"}

@@ -599,10 +599,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "测试失败修复",
             "candidate_skill": "test-fix-skill",
             "agent_candidate": "研发测试修复 Agent",
-            "estimated_manual_minutes": 35,
-            "human_intervention": False,
-            "automation_fit": "high",
-            "risk_level": "medium",
         },
         "task-code-cache-bug": {
             "department": "engineering",
@@ -611,10 +607,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "代码缺陷定位",
             "candidate_skill": "code-debug-skill",
             "agent_candidate": "研发缺陷定位 Agent",
-            "estimated_manual_minutes": 45,
-            "human_intervention": False,
-            "automation_fit": "high",
-            "risk_level": "medium",
         },
         "task-code-dashboard-copy": {
             "department": "product_ops",
@@ -623,10 +615,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "看板文案本地化",
             "candidate_skill": "dashboard-copy-skill",
             "agent_candidate": "运营看板配置 Agent",
-            "estimated_manual_minutes": 20,
-            "human_intervention": False,
-            "automation_fit": "medium",
-            "risk_level": "low",
         },
         "task-code-flaky-test": {
             "department": "engineering",
@@ -635,10 +623,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "测试失败修复",
             "candidate_skill": "test-fix-skill",
             "agent_candidate": "研发测试修复 Agent",
-            "estimated_manual_minutes": 40,
-            "human_intervention": True,
-            "automation_fit": "high",
-            "risk_level": "medium",
         },
         "task-code-hook-refactor": {
             "department": "platform",
@@ -647,10 +631,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "Agent Hook 重构",
             "candidate_skill": "agent-hook-skill",
             "agent_candidate": "平台 Agent 工程助手",
-            "estimated_manual_minutes": 55,
-            "human_intervention": True,
-            "automation_fit": "medium",
-            "risk_level": "medium",
         },
         "task-permission-dashboard-log": {
             "department": "platform",
@@ -659,10 +639,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "开发环境权限修复",
             "candidate_skill": "env-permission-skill",
             "agent_candidate": "开发环境运维 Agent",
-            "estimated_manual_minutes": 18,
-            "human_intervention": False,
-            "automation_fit": "medium",
-            "risk_level": "medium",
         },
         "task-permission-pycache": {
             "department": "platform",
@@ -671,10 +647,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "开发环境权限修复",
             "candidate_skill": "env-permission-skill",
             "agent_candidate": "开发环境运维 Agent",
-            "estimated_manual_minutes": 15,
-            "human_intervention": False,
-            "automation_fit": "medium",
-            "risk_level": "medium",
         },
         "task-permission-sqlite": {
             "department": "platform",
@@ -683,10 +655,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "开发环境权限修复",
             "candidate_skill": "env-permission-skill",
             "agent_candidate": "开发环境运维 Agent",
-            "estimated_manual_minutes": 22,
-            "human_intervention": False,
-            "automation_fit": "medium",
-            "risk_level": "medium",
         },
         "task-permission-readonly": {
             "department": "platform",
@@ -695,10 +663,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "开发环境权限修复",
             "candidate_skill": "env-permission-skill",
             "agent_candidate": "开发环境运维 Agent",
-            "estimated_manual_minutes": 12,
-            "human_intervention": True,
-            "automation_fit": "medium",
-            "risk_level": "medium",
         },
         "task-timeout-langfuse-export": {
             "department": "data_ops",
@@ -707,10 +671,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "远程数据拉取",
             "candidate_skill": "remote-retry-skill",
             "agent_candidate": "数据接口巡检 Agent",
-            "estimated_manual_minutes": 28,
-            "human_intervention": False,
-            "automation_fit": "high",
-            "risk_level": "low",
         },
         "task-timeout-npm-install": {
             "department": "platform",
@@ -719,10 +679,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "依赖安装恢复",
             "candidate_skill": "dependency-recovery-skill",
             "agent_candidate": "工程环境修复 Agent",
-            "estimated_manual_minutes": 25,
-            "human_intervention": False,
-            "automation_fit": "medium",
-            "risk_level": "medium",
         },
         "task-timeout-web-search": {
             "department": "strategy",
@@ -731,10 +687,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "行业研究汇总",
             "candidate_skill": "research-synthesis-skill",
             "agent_candidate": "行业研究 Agent",
-            "estimated_manual_minutes": 60,
-            "human_intervention": True,
-            "automation_fit": "medium",
-            "risk_level": "low",
         },
         "task-timeout-report-export": {
             "department": "data_ops",
@@ -743,10 +695,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "报表导出核验",
             "candidate_skill": "report-export-skill",
             "agent_candidate": "报表运营 Agent",
-            "estimated_manual_minutes": 16,
-            "human_intervention": False,
-            "automation_fit": "high",
-            "risk_level": "low",
         },
         "task-skill-research-patterns": {
             "department": "strategy",
@@ -755,10 +703,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "行业研究汇总",
             "candidate_skill": "research-synthesis-skill",
             "agent_candidate": "行业研究 Agent",
-            "estimated_manual_minutes": 75,
-            "human_intervention": True,
-            "automation_fit": "medium",
-            "risk_level": "low",
         },
         "task-skill-readme-polish": {
             "department": "product_ops",
@@ -767,10 +711,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "文档内容润色",
             "candidate_skill": "content-polish-skill",
             "agent_candidate": "内容运营 Agent",
-            "estimated_manual_minutes": 30,
-            "human_intervention": False,
-            "automation_fit": "high",
-            "risk_level": "low",
         },
         "task-skill-architecture": {
             "department": "product_ops",
@@ -779,10 +719,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "架构图生成",
             "candidate_skill": "diagram-skill",
             "agent_candidate": "方案展示 Agent",
-            "estimated_manual_minutes": 35,
-            "human_intervention": False,
-            "automation_fit": "high",
-            "risk_level": "low",
         },
         "task-skill-review": {
             "department": "product_ops",
@@ -791,10 +727,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "看板交互评审",
             "candidate_skill": "product-review-skill",
             "agent_candidate": "产品体验评审 Agent",
-            "estimated_manual_minutes": 45,
-            "human_intervention": True,
-            "automation_fit": "medium",
-            "risk_level": "low",
         },
         "task-skill-demo-script": {
             "department": "sales_enablement",
@@ -803,10 +735,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "workflow_label": "演示脚本生成",
             "candidate_skill": "demo-script-skill",
             "agent_candidate": "售前演示 Agent",
-            "estimated_manual_minutes": 40,
-            "human_intervention": False,
-            "automation_fit": "high",
-            "risk_level": "low",
         },
     }
     fallback = {
@@ -816,10 +744,6 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
         "workflow_label": "未归属流程",
         "candidate_skill": f"{scenario}-skill",
         "agent_candidate": "待评估专项 Agent",
-        "estimated_manual_minutes": 20,
-        "human_intervention": False,
-        "automation_fit": "medium",
-        "risk_level": "medium",
     }
     context = dict(contexts.get(task_id, fallback))
     context["department_agent"] = context.get("department_agent") or f"{context['department_label']}通用 Agent"
