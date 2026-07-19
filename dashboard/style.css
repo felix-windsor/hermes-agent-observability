@@ -53,6 +53,13 @@ h1 {
   max-width: 720px;
 }
 
+.data-note {
+  color: rgba(125, 211, 252, 0.72);
+  font-size: 12px;
+  margin: 8px 0 0;
+  max-width: 760px;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -526,8 +533,13 @@ pre {
 }
 
 footer {
+  align-items: center;
   color: rgba(226, 232, 240, 0.58);
+  display: flex;
+  flex-wrap: wrap;
   font-size: 12px;
+  gap: 8px;
+  justify-content: space-between;
   padding: 2px 0 8px;
 }
 

@@ -379,6 +379,7 @@
         <div>
           <h1>Hermes Agent 观测看板</h1>
           <p class="subtitle">展示 trace 时间线、工具调用、Skill 高频口径、失败分类和部门内专项化机会。</p>
+          <p class="data-note">当前数据为脱敏模拟样例，不包含真实组织、用户、内部系统表名或原始业务数据。</p>
         </div>
         <div class="actions">
           <div class="ranges">${ranges.map(([key, label]) => `<button data-range="${key}" class="${state.range === key ? "active" : ""}">${label}</button>`).join("")}</div>
@@ -425,7 +426,10 @@
         ${panel("失败记录", failureTable(data.failures))}
         ${panel("最近事件", recentEvents())}
       </section>
-      <footer><code>SQLite: ${escapeHtml(data.paths ? data.paths.sqlite : "")}</code></footer>
+      <footer>
+        <span>脱敏模拟数据，仅用于作品集演示和观测机制说明。</span>
+        <code>SQLite: ${escapeHtml(data.paths ? data.paths.sqlite : "")}</code>
+      </footer>
     `;
     wire();
   }
