@@ -356,6 +356,229 @@ def _build_trace_story(rows: list[dict[str, Any]], failures: list[dict[str, Any]
     }
 
 
+def _payload_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return bool(value)
+
+
+def _payload_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _business_context(row: dict[str, Any]) -> dict[str, Any]:
+    payload = row.get("payload") if isinstance(row.get("payload"), dict) else {}
+    task_id = str(row.get("task_id") or "")
+    scenario = str(payload.get("scenario") or "")
+    if task_id.startswith("task-code"):
+        fallback = ("engineering", "研发部", "code_assistance", "代码研发辅助", "code-debug-skill", "研发缺陷定位 Agent")
+    elif task_id.startswith("task-permission"):
+        fallback = ("platform", "平台工程部", "dev_env_repair", "开发环境修复", "env-permission-skill", "开发环境运维 Agent")
+    elif task_id.startswith("task-timeout"):
+        fallback = ("data_ops", "数据运营部", "remote_recovery", "远程接口恢复", "remote-retry-skill", "数据接口巡检 Agent")
+    elif task_id.startswith("task-skill"):
+        fallback = ("product_ops", "产品运营部", "content_enablement", "内容与方案生产", "content-polish-skill", "内容运营 Agent")
+    else:
+        fallback = (scenario or "unknown", "未归属部门", scenario or "unknown", "未归属流程", "unknown-skill", "待评估专项 Agent")
+
+    return {
+        "department": str(payload.get("department") or fallback[0]),
+        "department_label": str(payload.get("department_label") or fallback[1]),
+        "workflow": str(payload.get("workflow") or fallback[2]),
+        "workflow_label": str(payload.get("workflow_label") or fallback[3]),
+        "candidate_skill": str(payload.get("candidate_skill") or fallback[4]),
+        "agent_candidate": str(payload.get("agent_candidate") or fallback[5]),
+        "estimated_manual_minutes": _payload_int(payload.get("estimated_manual_minutes"), 20),
+        "human_intervention": _payload_bool(payload.get("human_intervention")),
+        "automation_fit": str(payload.get("automation_fit") or "medium"),
+        "risk_level": str(payload.get("risk_level") or "medium"),
+    }
+
+
+def _risk_penalty(risk_level: str) -> int:
+    return {"low": 0, "medium": 5, "high": 18}.get((risk_level or "medium").lower(), 5)
+
+
+def _fit_bonus(automation_fit: str) -> int:
+    return {"high": 18, "medium": 10, "low": 2}.get((automation_fit or "medium").lower(), 10)
+
+
+def _risk_label(risk_level: str) -> str:
+    return {"low": "低", "medium": "中", "high": "高"}.get((risk_level or "medium").lower(), "中")
+
+
+def _opportunity_recommendation(score: int, risk_level: str, human_rate: float) -> str:
+    if score >= 82 and risk_level == "low":
+        return "优先沉淀为部门级专项 Agent"
+    if score >= 72:
+        return "适合做专项 Agent 试点"
+    if score >= 58 or human_rate > 0.35:
+        return "适合先做半自动工作流"
+    return "继续观察，先补工具和结构化数据"
+
+
+def _automation_opportunities(
+    conn: sqlite3.Connection,
+    range_name: str,
+    scenario: str,
+    limit: int = 8,
+) -> list[dict[str, Any]]:
+    where_sql, params = _where_filters(range_name, scenario)
+    rows = [
+        _payload(row)
+        for row in _rows(conn, f"""
+            SELECT created_at, trace_id, task_id, session_id, event_type,
+                   span_type, name, status, duration_ms, payload_json
+            FROM events
+            {where_sql}
+            ORDER BY created_at ASC
+            """, params)
+    ]
+    traces: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        trace_id = row.get("trace_id")
+        if not trace_id:
+            continue
+        context = _business_context(row)
+        trace = traces.setdefault(
+            trace_id,
+            {
+                **context,
+                "trace_id": trace_id,
+                "task_id": row.get("task_id") or "",
+                "started_at": row.get("created_at") or "",
+                "last_seen": row.get("created_at") or "",
+                "events": 0,
+                "tools": 0,
+                "skill_uses": 0,
+                "has_failure": False,
+                "task_success": False,
+                "task_failed": False,
+                "observed_duration_ms": 0,
+            },
+        )
+        trace["last_seen"] = row.get("created_at") or trace["last_seen"]
+        trace["events"] += 1
+        if row.get("event_type") == "tool.completed":
+            trace["tools"] += 1
+        if row.get("event_type") == "skill.used":
+            trace["skill_uses"] += 1
+        if row.get("duration_ms") is not None:
+            trace["observed_duration_ms"] += int(row["duration_ms"])
+        if row.get("status") in {"error", "interrupted"} or row.get("event_type") in {"task.failed", "task.interrupted"}:
+            trace["has_failure"] = True
+        if row.get("event_type") == "task.completed":
+            trace["task_success"] = True
+        if row.get("event_type") in {"task.failed", "task.interrupted"}:
+            trace["task_failed"] = True
+
+    groups: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for trace in traces.values():
+        key = (trace["department"], trace["candidate_skill"], trace["workflow"])
+        group = groups.setdefault(
+            key,
+            {
+                "department": trace["department"],
+                "department_label": trace["department_label"],
+                "workflow": trace["workflow"],
+                "workflow_label": trace["workflow_label"],
+                "candidate_skill": trace["candidate_skill"],
+                "agent_candidate": trace["agent_candidate"],
+                "risk_level": trace["risk_level"],
+                "automation_fit": trace["automation_fit"],
+                "trace_count": 0,
+                "successes": 0,
+                "failure_traces": 0,
+                "human_interventions": 0,
+                "estimated_saved_minutes": 0,
+                "tool_calls": 0,
+                "skill_uses": 0,
+                "observed_duration_ms": 0,
+                "primary_trace_id": trace["trace_id"],
+                "example_requests": [],
+            },
+        )
+        group["trace_count"] += 1
+        group["successes"] += 1 if trace["task_success"] and not trace["task_failed"] else 0
+        group["failure_traces"] += 1 if trace["has_failure"] else 0
+        group["human_interventions"] += 1 if trace["human_intervention"] else 0
+        group["estimated_saved_minutes"] += trace["estimated_manual_minutes"]
+        group["tool_calls"] += trace["tools"]
+        group["skill_uses"] += trace["skill_uses"]
+        group["observed_duration_ms"] += trace["observed_duration_ms"]
+        if _risk_penalty(trace["risk_level"]) > _risk_penalty(group["risk_level"]):
+            group["risk_level"] = trace["risk_level"]
+        if _fit_bonus(trace["automation_fit"]) > _fit_bonus(group["automation_fit"]):
+            group["automation_fit"] = trace["automation_fit"]
+        request = _first_payload_value([{"payload": row.get("payload", {})} for row in rows if row.get("trace_id") == trace["trace_id"]], "user_request")
+        if request and len(group["example_requests"]) < 2:
+            group["example_requests"].append(request)
+
+    opportunities: list[dict[str, Any]] = []
+    for group in groups.values():
+        trace_count = max(1, int(group["trace_count"]))
+        success_rate = group["successes"] / trace_count
+        failure_rate = group["failure_traces"] / trace_count
+        human_rate = group["human_interventions"] / trace_count
+        frequency_score = min(30, trace_count * 10)
+        time_score = min(30, group["estimated_saved_minutes"] / 2.5)
+        success_score = success_rate * 24
+        maturity_score = min(10, group["tool_calls"] * 1.5 + group["skill_uses"] * 2)
+        score = round(
+            max(
+                0,
+                min(
+                    100,
+                    frequency_score
+                    + time_score
+                    + success_score
+                    + maturity_score
+                    + _fit_bonus(group["automation_fit"])
+                    - failure_rate * 12
+                    - human_rate * 4
+                    - _risk_penalty(group["risk_level"]),
+                ),
+            )
+        )
+        group["success_rate"] = round(success_rate, 3)
+        group["failure_rate"] = round(failure_rate, 3)
+        group["human_intervention_rate"] = round(human_rate, 3)
+        group["opportunity_score"] = score
+        group["risk_label"] = _risk_label(group["risk_level"])
+        group["recommendation"] = _opportunity_recommendation(score, group["risk_level"], human_rate)
+        group["evidence"] = (
+            f"{trace_count} 条 trace，成功率 {round(success_rate * 100)}%，"
+            f"预计节省 {group['estimated_saved_minutes']} 分钟。"
+        )
+        opportunities.append(group)
+
+    return sorted(
+        opportunities,
+        key=lambda item: (-item["opportunity_score"], -item["estimated_saved_minutes"], item["department_label"]),
+    )[:limit]
+
+
+def _trace_automation_opportunity(rows: list[dict[str, Any]], failures: list[dict[str, Any]]) -> dict[str, Any]:
+    context = _business_context(rows[0])
+    failed = bool(failures or any(row.get("event_type") == "task.failed" for row in rows))
+    fit_text = {"high": "高", "medium": "中", "low": "低"}.get(context["automation_fit"], "中")
+    status_text = "需要先降低失败率" if failed else "可进入候选池"
+    return {
+        **context,
+        "risk_label": _risk_label(context["risk_level"]),
+        "automation_fit_label": fit_text,
+        "recommendation": (
+            f"归属「{context['department_label']} / {context['workflow_label']}」，"
+            f"候选方向是「{context['agent_candidate']}」，{status_text}。"
+        ),
+    }
+
+
 def _has_success_after_failure(rows: list[dict[str, Any]]) -> bool:
     seen_failure = False
     for row in rows:
@@ -472,6 +695,7 @@ def overview(range: str = Query("24h"), scenario: str = Query("all")) -> dict[st
             ORDER BY last_seen DESC
             LIMIT 12
             """, params)
+        opportunities = _automation_opportunities(conn, range, scenario)
 
     return {
         "range": range,
@@ -484,6 +708,7 @@ def overview(range: str = Query("24h"), scenario: str = Query("all")) -> dict[st
         "skills": skills,
         "failures": failures,
         "failure_categories": sorted(failure_categories.values(), key=lambda item: (-item["count"], item["label"])),
+        "opportunities": opportunities,
         "traces": traces,
     }
 
@@ -552,6 +777,7 @@ def trace_detail(trace_id: str) -> dict[str, Any]:
         "user_request": _first_payload_value(result, "user_request"),
         "scenario_label": _first_payload_value(result, "scenario_label"),
         "story": story,
+        "automation_opportunity": _trace_automation_opportunity(result, failures),
     }
     return {"trace_id": trace_id, "summary": summary, "events": result, "failures": failures}
 

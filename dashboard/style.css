@@ -188,6 +188,12 @@ button.active {
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
 }
 
+.single {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .grid.traces {
   grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
 }
@@ -267,6 +273,29 @@ pre {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+.opportunity-table strong,
+.opportunity-table small {
+  display: block;
+}
+
+.opportunity-table small {
+  color: rgba(226, 232, 240, 0.52);
+  font-size: 11px;
+  margin-top: 3px;
+}
+
+.score-pill {
+  background: rgba(56, 189, 248, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.34);
+  border-radius: 999px;
+  color: #bae6fd;
+  display: inline-flex;
+  font-weight: 750;
+  justify-content: center;
+  min-width: 36px;
+  padding: 4px 8px;
+}
+
 .clickable tbody tr {
   cursor: pointer;
 }
@@ -290,7 +319,8 @@ pre {
 
 .trace-request,
 .trace-story,
-.trace-actions {
+.trace-actions,
+.trace-opportunity {
   background: rgba(56, 189, 248, 0.08);
   border: 1px solid rgba(56, 189, 248, 0.18);
   border-radius: 7px;
@@ -310,9 +340,15 @@ pre {
   border-color: rgba(251, 191, 36, 0.2);
 }
 
+.trace-opportunity {
+  background: rgba(168, 85, 247, 0.08);
+  border-color: rgba(168, 85, 247, 0.2);
+}
+
 .trace-request span,
 .trace-story span,
-.trace-actions span {
+.trace-actions span,
+.trace-opportunity span {
   color: rgba(186, 230, 253, 0.78);
   font-size: 11px;
 }
@@ -325,8 +361,13 @@ pre {
   color: rgba(254, 240, 138, 0.82);
 }
 
+.trace-opportunity span {
+  color: rgba(221, 214, 254, 0.84);
+}
+
 .trace-request strong,
-.trace-story strong {
+.trace-story strong,
+.trace-opportunity strong {
   font-size: 14px;
   line-height: 1.45;
 }
@@ -343,6 +384,22 @@ pre {
   color: rgba(226, 232, 240, 0.86);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.opportunity-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.opportunity-meta b {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+  color: rgba(226, 232, 240, 0.82);
+  font-size: 11px;
+  font-weight: 650;
+  padding: 4px 8px;
 }
 
 .trace-request em {

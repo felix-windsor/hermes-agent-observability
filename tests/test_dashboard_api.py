@@ -29,6 +29,8 @@ def test_overview_contains_sample_data(monkeypatch, tmp_path):
     assert data["tools"]
     assert data["failure_categories"]
     assert data["failures"][0]["failure_category"]["suggestions"]
+    assert data["opportunities"]
+    assert data["opportunities"][0]["opportunity_score"] > 0
     assert any(item["id"] == "permission" for item in data["scenarios"])
 
 
@@ -48,6 +50,7 @@ def test_trace_detail_returns_timeline(monkeypatch, tmp_path):
     assert detail["summary"]["scenario_label"]
     assert detail["summary"]["story"]["summary"]
     assert "规划" in detail["summary"]["story"]["phases"]
+    assert detail["summary"]["automation_opportunity"]["agent_candidate"]
 
 
 def test_range_filter_and_export(monkeypatch, tmp_path):
@@ -114,3 +117,22 @@ def test_failure_category_exposes_optimization_suggestions(monkeypatch, tmp_path
     assert category["label"] == "权限问题"
     assert category["confidence"] > 0.8
     assert any("root" in suggestion for suggestion in category["suggestions"])
+
+
+def test_automation_opportunities_rank_department_agent_candidates(monkeypatch, tmp_path):
+    app, _store = fresh_app(monkeypatch, tmp_path)
+    client = TestClient(app)
+    overview = client.get("/api/overview?range=24h&scenario=all").json()
+
+    opportunities = overview["opportunities"]
+    engineering = next(
+        item for item in opportunities
+        if item["department"] == "engineering"
+        and item["candidate_skill"] == "test-fix-skill"
+    )
+
+    assert engineering["agent_candidate"] == "研发测试修复 Agent"
+    assert engineering["trace_count"] >= 2
+    assert engineering["estimated_saved_minutes"] >= 70
+    assert engineering["recommendation"]
+    assert engineering["primary_trace_id"]
