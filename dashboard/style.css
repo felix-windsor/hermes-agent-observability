@@ -296,6 +296,23 @@ pre {
   padding: 4px 8px;
 }
 
+.skill-bundle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 280px;
+}
+
+.skill-bundle code,
+.skill-bundle span {
+  background: rgba(15, 23, 42, 0.62);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  color: rgba(226, 232, 240, 0.82);
+  font-size: 10px;
+  padding: 3px 6px;
+}
+
 .clickable tbody tr {
   cursor: pointer;
 }

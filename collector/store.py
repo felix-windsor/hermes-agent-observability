@@ -827,4 +827,24 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
     context["specialized_agent_candidate"] = (
         context.get("specialized_agent_candidate") or context["agent_candidate"]
     )
+    context["skill_bundle"] = context.get("skill_bundle") or _skill_bundle_for(context["candidate_skill"])
     return context
+
+
+def _skill_bundle_for(candidate_skill: str) -> list[str]:
+    bundles = {
+        "test-fix-skill": ["test-fix-skill", "code-search-skill", "patch-apply-skill", "test-runner-skill"],
+        "code-debug-skill": ["code-debug-skill", "code-search-skill", "patch-apply-skill", "test-runner-skill"],
+        "dashboard-copy-skill": ["dashboard-copy-skill", "ui-copy-skill", "patch-apply-skill"],
+        "agent-hook-skill": ["agent-hook-skill", "code-search-skill", "architecture-review-skill", "test-runner-skill"],
+        "env-permission-skill": ["env-permission-skill", "shell-diagnosis-skill", "permission-repair-skill"],
+        "remote-retry-skill": ["remote-retry-skill", "api-diagnosis-skill", "retry-policy-skill"],
+        "dependency-recovery-skill": ["dependency-recovery-skill", "shell-diagnosis-skill", "cache-policy-skill"],
+        "research-synthesis-skill": ["research-synthesis-skill", "web-search-skill", "source-review-skill", "summary-writer-skill"],
+        "report-export-skill": ["report-export-skill", "api-diagnosis-skill", "data-check-skill"],
+        "content-polish-skill": ["content-polish-skill", "doc-structure-skill", "style-review-skill"],
+        "diagram-skill": ["diagram-skill", "architecture-review-skill", "doc-structure-skill"],
+        "product-review-skill": ["product-review-skill", "ui-review-skill", "interaction-check-skill"],
+        "demo-script-skill": ["demo-script-skill", "summary-writer-skill", "scenario-story-skill"],
+    }
+    return bundles.get(candidate_skill, [candidate_skill])

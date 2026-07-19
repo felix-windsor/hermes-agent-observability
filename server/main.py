@@ -371,6 +371,33 @@ def _payload_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _payload_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item or "").strip()]
+    if isinstance(value, str) and value.strip():
+        return [part.strip() for part in value.split(",") if part.strip()]
+    return []
+
+
+def _skill_bundle_for(candidate_skill: str) -> list[str]:
+    bundles = {
+        "test-fix-skill": ["test-fix-skill", "code-search-skill", "patch-apply-skill", "test-runner-skill"],
+        "code-debug-skill": ["code-debug-skill", "code-search-skill", "patch-apply-skill", "test-runner-skill"],
+        "dashboard-copy-skill": ["dashboard-copy-skill", "ui-copy-skill", "patch-apply-skill"],
+        "agent-hook-skill": ["agent-hook-skill", "code-search-skill", "architecture-review-skill", "test-runner-skill"],
+        "env-permission-skill": ["env-permission-skill", "shell-diagnosis-skill", "permission-repair-skill"],
+        "remote-retry-skill": ["remote-retry-skill", "api-diagnosis-skill", "retry-policy-skill"],
+        "dependency-recovery-skill": ["dependency-recovery-skill", "shell-diagnosis-skill", "cache-policy-skill"],
+        "research-synthesis-skill": ["research-synthesis-skill", "web-search-skill", "source-review-skill", "summary-writer-skill"],
+        "report-export-skill": ["report-export-skill", "api-diagnosis-skill", "data-check-skill"],
+        "content-polish-skill": ["content-polish-skill", "doc-structure-skill", "style-review-skill"],
+        "diagram-skill": ["diagram-skill", "architecture-review-skill", "doc-structure-skill"],
+        "product-review-skill": ["product-review-skill", "ui-review-skill", "interaction-check-skill"],
+        "demo-script-skill": ["demo-script-skill", "summary-writer-skill", "scenario-story-skill"],
+    }
+    return bundles.get(candidate_skill, [candidate_skill] if candidate_skill else [])
+
+
 def _business_context(row: dict[str, Any]) -> dict[str, Any]:
     payload = row.get("payload") if isinstance(row.get("payload"), dict) else {}
     task_id = str(row.get("task_id") or "")
@@ -389,16 +416,19 @@ def _business_context(row: dict[str, Any]) -> dict[str, Any]:
     department_label = str(payload.get("department_label") or fallback[1])
     workflow_label = str(payload.get("workflow_label") or fallback[3])
     agent_candidate = str(payload.get("agent_candidate") or fallback[5])
+    candidate_skill = str(payload.get("candidate_skill") or fallback[4])
+    skill_bundle = _payload_list(payload.get("skill_bundle")) or _skill_bundle_for(candidate_skill)
     return {
         "department": str(payload.get("department") or fallback[0]),
         "department_label": department_label,
         "department_agent": str(payload.get("department_agent") or f"{department_label}通用 Agent"),
         "workflow": str(payload.get("workflow") or fallback[2]),
         "workflow_label": workflow_label,
-        "candidate_skill": str(payload.get("candidate_skill") or fallback[4]),
+        "candidate_skill": candidate_skill,
         "capability_candidate": str(payload.get("capability_candidate") or f"{workflow_label}专项能力"),
         "agent_candidate": agent_candidate,
         "specialized_agent_candidate": str(payload.get("specialized_agent_candidate") or agent_candidate),
+        "skill_bundle": skill_bundle,
         "estimated_manual_minutes": _payload_int(payload.get("estimated_manual_minutes"), 20),
         "human_intervention": _payload_bool(payload.get("human_intervention")),
         "automation_fit": str(payload.get("automation_fit") or "medium"),
@@ -428,14 +458,13 @@ def _opportunity_recommendation(score: int, risk_level: str, human_rate: float) 
     return "继续观察，先补齐工具链和结构化数据"
 
 
-def _automation_opportunities(
+def _trace_business_rows(
     conn: sqlite3.Connection,
     range_name: str,
     scenario: str,
-    limit: int = 8,
 ) -> list[dict[str, Any]]:
     where_sql, params = _where_filters(range_name, scenario)
-    rows = [
+    return [
         _payload(row)
         for row in _rows(conn, f"""
             SELECT created_at, trace_id, task_id, session_id, event_type,
@@ -445,6 +474,9 @@ def _automation_opportunities(
             ORDER BY created_at ASC
             """, params)
     ]
+
+
+def _business_traces(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     traces: dict[str, dict[str, Any]] = {}
     for row in rows:
         trace_id = row.get("trace_id")
@@ -466,6 +498,7 @@ def _automation_opportunities(
                 "task_success": False,
                 "task_failed": False,
                 "observed_duration_ms": 0,
+                "user_request": _first_payload_value([row], "user_request"),
             },
         )
         trace["last_seen"] = row.get("created_at") or trace["last_seen"]
@@ -482,6 +515,17 @@ def _automation_opportunities(
             trace["task_success"] = True
         if row.get("event_type") in {"task.failed", "task.interrupted"}:
             trace["task_failed"] = True
+    return traces
+
+
+def _automation_opportunities(
+    conn: sqlite3.Connection,
+    range_name: str,
+    scenario: str,
+    limit: int = 8,
+) -> list[dict[str, Any]]:
+    rows = _trace_business_rows(conn, range_name, scenario)
+    traces = _business_traces(rows)
 
     groups: dict[tuple[str, str, str], dict[str, Any]] = {}
     for trace in traces.values():
@@ -498,6 +542,7 @@ def _automation_opportunities(
                 "capability_candidate": trace["capability_candidate"],
                 "agent_candidate": trace["agent_candidate"],
                 "specialized_agent_candidate": trace["specialized_agent_candidate"],
+                "skill_bundle": [],
                 "risk_level": trace["risk_level"],
                 "automation_fit": trace["automation_fit"],
                 "trace_count": 0,
@@ -520,11 +565,14 @@ def _automation_opportunities(
         group["tool_calls"] += trace["tools"]
         group["skill_uses"] += trace["skill_uses"]
         group["observed_duration_ms"] += trace["observed_duration_ms"]
+        for skill in trace["skill_bundle"]:
+            if skill not in group["skill_bundle"]:
+                group["skill_bundle"].append(skill)
         if _risk_penalty(trace["risk_level"]) > _risk_penalty(group["risk_level"]):
             group["risk_level"] = trace["risk_level"]
         if _fit_bonus(trace["automation_fit"]) > _fit_bonus(group["automation_fit"]):
             group["automation_fit"] = trace["automation_fit"]
-        request = _first_payload_value([{"payload": row.get("payload", {})} for row in rows if row.get("trace_id") == trace["trace_id"]], "user_request")
+        request = trace.get("user_request", "")
         if request and len(group["example_requests"]) < 2:
             group["example_requests"].append(request)
 
@@ -534,9 +582,9 @@ def _automation_opportunities(
         success_rate = group["successes"] / trace_count
         failure_rate = group["failure_traces"] / trace_count
         human_rate = group["human_interventions"] / trace_count
-        frequency_score = min(30, trace_count * 10)
-        time_score = min(30, group["estimated_saved_minutes"] / 2.5)
-        success_score = success_rate * 24
+        frequency_score = min(46, trace_count * 16)
+        time_score = min(22, group["estimated_saved_minutes"] / 4)
+        success_score = success_rate * 18
         maturity_score = min(10, group["tool_calls"] * 1.5 + group["skill_uses"] * 2)
         score = round(
             max(
@@ -561,7 +609,7 @@ def _automation_opportunities(
         group["risk_label"] = _risk_label(group["risk_level"])
         group["recommendation"] = _opportunity_recommendation(score, group["risk_level"], human_rate)
         group["evidence"] = (
-            f"{trace_count} 条 trace，成功率 {round(success_rate * 100)}%，"
+            f"频率 {trace_count} 条 trace，成功率 {round(success_rate * 100)}%，"
             f"预计节省 {group['estimated_saved_minutes']} 分钟。"
         )
         group["positioning"] = (
@@ -573,6 +621,74 @@ def _automation_opportunities(
     return sorted(
         opportunities,
         key=lambda item: (-item["opportunity_score"], -item["estimated_saved_minutes"], item["department_label"]),
+    )[:limit]
+
+
+def _skill_refinement_priorities(
+    conn: sqlite3.Connection,
+    range_name: str,
+    scenario: str,
+    limit: int = 8,
+) -> list[dict[str, Any]]:
+    traces = _business_traces(_trace_business_rows(conn, range_name, scenario))
+    groups: dict[tuple[str, str], dict[str, Any]] = {}
+    for trace in traces.values():
+        for skill in trace["skill_bundle"]:
+            key = (trace["department"], skill)
+            group = groups.setdefault(
+                key,
+                {
+                    "department": trace["department"],
+                    "department_label": trace["department_label"],
+                    "department_agent": trace["department_agent"],
+                    "skill": skill,
+                    "trace_count": 0,
+                    "primary_count": 0,
+                    "successes": 0,
+                    "failure_traces": 0,
+                    "estimated_saved_minutes": 0,
+                    "workflows": [],
+                    "specialized_agents": [],
+                    "primary_trace_id": trace["trace_id"],
+                },
+            )
+            group["trace_count"] += 1
+            group["primary_count"] += 1 if skill == trace["candidate_skill"] else 0
+            group["successes"] += 1 if trace["task_success"] and not trace["task_failed"] else 0
+            group["failure_traces"] += 1 if trace["has_failure"] else 0
+            group["estimated_saved_minutes"] += trace["estimated_manual_minutes"]
+            if trace["workflow_label"] not in group["workflows"]:
+                group["workflows"].append(trace["workflow_label"])
+            if trace["specialized_agent_candidate"] not in group["specialized_agents"]:
+                group["specialized_agents"].append(trace["specialized_agent_candidate"])
+
+    priorities: list[dict[str, Any]] = []
+    for group in groups.values():
+        trace_count = max(1, int(group["trace_count"]))
+        success_rate = group["successes"] / trace_count
+        failure_rate = group["failure_traces"] / trace_count
+        frequency_score = min(65, trace_count * 18)
+        reuse_score = min(15, len(group["workflows"]) * 5)
+        time_score = min(12, group["estimated_saved_minutes"] / 8)
+        success_score = success_rate * 12
+        score = round(max(0, min(100, frequency_score + reuse_score + time_score + success_score - failure_rate * 8)))
+        group["success_rate"] = round(success_rate, 3)
+        group["failure_rate"] = round(failure_rate, 3)
+        group["refinement_score"] = score
+        group["recommendation"] = (
+            "高频核心 Skill，优先拆细流程和工具边界"
+            if trace_count >= 3
+            else "频率开始出现，继续观察并补充结构化埋点"
+        )
+        group["evidence"] = (
+            f"被 {trace_count} 条 trace 使用，覆盖 {len(group['workflows'])} 个流程，"
+            f"预计节省 {group['estimated_saved_minutes']} 分钟。"
+        )
+        priorities.append(group)
+
+    return sorted(
+        priorities,
+        key=lambda item: (-item["trace_count"], -item["refinement_score"], -item["primary_count"], item["skill"]),
     )[:limit]
 
 
@@ -709,6 +825,7 @@ def overview(range: str = Query("24h"), scenario: str = Query("all")) -> dict[st
             LIMIT 12
             """, params)
         opportunities = _automation_opportunities(conn, range, scenario)
+        skill_priorities = _skill_refinement_priorities(conn, range, scenario)
 
     return {
         "range": range,
@@ -721,6 +838,7 @@ def overview(range: str = Query("24h"), scenario: str = Query("all")) -> dict[st
         "skills": skills,
         "failures": failures,
         "failure_categories": sorted(failure_categories.values(), key=lambda item: (-item["count"], item["label"])),
+        "skill_priorities": skill_priorities,
         "opportunities": opportunities,
         "traces": traces,
     }

@@ -216,9 +216,42 @@
     </tbody></table>`;
   }
 
+  function compactList(items, max = 2) {
+    const values = Array.isArray(items) ? items : [];
+    if (!values.length) return "-";
+    const shown = values.slice(0, max).join(" / ");
+    return values.length > max ? shown + " +" + (values.length - max) : shown;
+  }
+
+  function skillPriorityTable(rows) {
+    if (!rows || !rows.length) return `<div class="empty">暂无高频 Skill 数据。</div>`;
+    return `<table class="clickable opportunity-table"><thead><tr><th>部门通用 Agent</th><th>高频 Skill</th><th>调用频率</th><th>作为主 Skill</th><th>覆盖流程</th><th>成功率</th><th>节省时间</th><th>细化优先级</th><th>建议</th></tr></thead><tbody>
+      ${rows.map((row) => `<tr data-trace-id="${escapeHtml(row.primary_trace_id)}">
+        <td>
+          <strong>${escapeHtml(row.department_agent || row.department_label)}</strong>
+          <small>${escapeHtml(row.department_label)}</small>
+        </td>
+        <td><code>${escapeHtml(row.skill)}</code></td>
+        <td><strong>${fmtNumber(row.trace_count)}</strong> 次</td>
+        <td>${fmtNumber(row.primary_count)} 次</td>
+        <td title="${escapeHtml((row.workflows || []).join(" / "))}">${escapeHtml(compactList(row.workflows))}</td>
+        <td>${fmtPercent(row.success_rate)}</td>
+        <td>${fmtNumber(row.estimated_saved_minutes)} 分钟</td>
+        <td><span class="score-pill">${fmtNumber(row.refinement_score)}</span></td>
+        <td title="${escapeHtml(row.evidence || "")}">${escapeHtml(row.recommendation)}</td>
+      </tr>`).join("")}
+    </tbody></table>`;
+  }
+
+  function skillBundle(skills) {
+    const values = Array.isArray(skills) ? skills : [];
+    if (!values.length) return "-";
+    return `<div class="skill-bundle">${values.slice(0, 4).map((skill) => `<code>${escapeHtml(skill)}</code>`).join("")}${values.length > 4 ? `<span>+${values.length - 4}</span>` : ""}</div>`;
+  }
+
   function opportunityTable(rows) {
     if (!rows || !rows.length) return `<div class="empty">暂无部门内专项化候选。</div>`;
-    return `<table class="clickable opportunity-table"><thead><tr><th>部门通用 Agent</th><th>可细化 Skill</th><th>全流程专项 Agent</th><th>业务流程</th><th>Trace</th><th>成功率</th><th>节省时间</th><th>风险</th><th>机会分</th><th>落地建议</th></tr></thead><tbody>
+    return `<table class="clickable opportunity-table"><thead><tr><th>部门通用 Agent</th><th>可细化 Skill</th><th>Skill 组合</th><th>全流程专项 Agent</th><th>Trace</th><th>成功率</th><th>节省时间</th><th>风险</th><th>机会分</th><th>落地建议</th></tr></thead><tbody>
       ${rows.map((row) => `<tr data-trace-id="${escapeHtml(row.primary_trace_id)}">
         <td>
           <strong>${escapeHtml(row.department_agent || row.department_label)}</strong>
@@ -228,8 +261,8 @@
           <strong>${escapeHtml(row.capability_candidate || row.workflow_label)}</strong>
           <small>${escapeHtml(row.candidate_skill)}</small>
         </td>
+        <td>${skillBundle(row.skill_bundle)}</td>
         <td>${escapeHtml(row.specialized_agent_candidate || row.agent_candidate)}</td>
-        <td>${escapeHtml(row.workflow_label)}</td>
         <td>${fmtNumber(row.trace_count)}</td>
         <td>${fmtPercent(row.success_rate)}</td>
         <td>${fmtNumber(row.estimated_saved_minutes)} 分钟</td>
@@ -338,14 +371,14 @@
   }
 
   function render() {
-    const data = state.overview || { totals: {}, event_types: [], failure_categories: [], opportunities: [], traces: [], tools: [], skills: [], failures: [] };
+    const data = state.overview || { totals: {}, event_types: [], failure_categories: [], skill_priorities: [], opportunities: [], traces: [], tools: [], skills: [], failures: [] };
     const totals = data.totals || {};
     const scenarios = state.scenarios.length ? state.scenarios : defaultScenarios;
     app.innerHTML = `
       <header class="hero">
         <div>
           <h1>Hermes Agent 观测看板</h1>
-          <p class="subtitle">展示 trace 时间线、工具调用、Skill 使用、失败分类和部门内专项化机会。</p>
+          <p class="subtitle">展示 trace 时间线、工具调用、Skill 高频口径、失败分类和部门内专项化机会。</p>
         </div>
         <div class="actions">
           <div class="ranges">${ranges.map(([key, label]) => `<button data-range="${key}" class="${state.range === key ? "active" : ""}">${label}</button>`).join("")}</div>
@@ -369,6 +402,9 @@
         ${kpi("Skill 使用", fmtNumber(totals.skills))}
         ${kpi("失败次数", fmtNumber(totals.failures))}
         ${kpi("LLM 平均耗时", fmtMs(totals.avg_llm_ms))}
+      </section>
+      <section class="single">
+        ${panel("高频 Skill 细化优先级", skillPriorityTable(data.skill_priorities))}
       </section>
       <section class="single">
         ${panel("部门内专项 Agent 候选", opportunityTable(data.opportunities))}

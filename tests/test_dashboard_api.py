@@ -31,6 +31,8 @@ def test_overview_contains_sample_data(monkeypatch, tmp_path):
     assert data["failures"][0]["failure_category"]["suggestions"]
     assert data["opportunities"]
     assert data["opportunities"][0]["opportunity_score"] > 0
+    assert data["skill_priorities"]
+    assert data["skill_priorities"][0]["trace_count"] >= data["skill_priorities"][-1]["trace_count"]
     assert any(item["id"] == "permission" for item in data["scenarios"])
 
 
@@ -137,7 +139,23 @@ def test_automation_opportunities_rank_department_agent_candidates(monkeypatch, 
     assert engineering["department_agent"] == "研发部通用 Agent"
     assert engineering["capability_candidate"] == "测试失败修复专项能力"
     assert engineering["specialized_agent_candidate"] == "研发测试修复 Agent"
+    assert "test-fix-skill" in engineering["skill_bundle"]
+    assert "test-runner-skill" in engineering["skill_bundle"]
     assert engineering["trace_count"] >= 2
     assert engineering["estimated_saved_minutes"] >= 70
     assert "部门通用 Agent" in engineering["recommendation"]
     assert engineering["primary_trace_id"]
+
+
+def test_skill_refinement_priorities_emphasize_frequency(monkeypatch, tmp_path):
+    app, _store = fresh_app(monkeypatch, tmp_path)
+    client = TestClient(app)
+    overview = client.get("/api/overview?range=24h&scenario=all").json()
+
+    priorities = overview["skill_priorities"]
+    env_skill = next(item for item in priorities if item["skill"] == "env-permission-skill")
+
+    assert env_skill["trace_count"] == 4
+    assert env_skill["department_agent"] == "平台工程部通用 Agent"
+    assert env_skill["refinement_score"] > 0
+    assert "频" in env_skill["recommendation"]
