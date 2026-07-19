@@ -45,6 +45,8 @@ def test_trace_detail_returns_timeline(monkeypatch, tmp_path):
     assert detail["events"][0]["created_at"] <= detail["events"][-1]["created_at"]
     assert detail["summary"]["user_request"]
     assert detail["summary"]["scenario_label"]
+    assert detail["summary"]["story"]["summary"]
+    assert "规划" in detail["summary"]["story"]["phases"]
 
 
 def test_range_filter_and_export(monkeypatch, tmp_path):
@@ -74,3 +76,22 @@ def test_scenario_filter_focuses_dashboard(monkeypatch, tmp_path):
     assert permission["totals"]["events"] < all_data["totals"]["events"]
     assert permission["totals"]["traces"] == 4
     assert all(row["task_id"].startswith("task-permission-") for row in permission["traces"])
+
+
+def test_trace_story_detects_recovery_after_tool_failure(monkeypatch, tmp_path):
+    app, _store = fresh_app(monkeypatch, tmp_path)
+    client = TestClient(app)
+    overview = client.get("/api/overview?range=24h&scenario=timeout").json()
+    trace_id = next(
+        row["trace_id"]
+        for row in overview["traces"]
+        if row["task_id"] == "task-timeout-langfuse-export"
+    )
+
+    detail = client.get(f"/api/traces/{trace_id}").json()
+    story = detail["summary"]["story"]
+
+    assert story["recovered_after_failure"] is True
+    assert "失败分析" in story["phases"]
+    assert "重试恢复" in story["phases"]
+    assert "最终成功" in story["summary"]

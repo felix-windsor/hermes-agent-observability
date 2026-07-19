@@ -39,6 +39,7 @@ flowchart LR
 - 样例场景切换：正常代码修复、权限失败排查、工具超时重试、Skill 触发分析
 - Trace 详情时间线
 - Trace 顶部展示用户请求摘要
+- Trace 阶段归纳和任务故事摘要
 - Tool 性能表
 - Skill 使用表
 - 失败原因分类

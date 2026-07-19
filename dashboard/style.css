@@ -288,7 +288,8 @@ pre {
   gap: 14px;
 }
 
-.trace-request {
+.trace-request,
+.trace-story {
   background: rgba(56, 189, 248, 0.08);
   border: 1px solid rgba(56, 189, 248, 0.18);
   border-radius: 7px;
@@ -298,12 +299,23 @@ pre {
   padding: 10px;
 }
 
-.trace-request span {
+.trace-story {
+  background: rgba(34, 197, 94, 0.07);
+  border-color: rgba(34, 197, 94, 0.18);
+}
+
+.trace-request span,
+.trace-story span {
   color: rgba(186, 230, 253, 0.78);
   font-size: 11px;
 }
 
-.trace-request strong {
+.trace-story span {
+  color: rgba(187, 247, 208, 0.78);
+}
+
+.trace-request strong,
+.trace-story strong {
   font-size: 14px;
   line-height: 1.45;
 }
@@ -311,6 +323,28 @@ pre {
 .trace-request em {
   color: rgba(226, 232, 240, 0.6);
   font-size: 12px;
+  font-style: normal;
+}
+
+.phase-chain {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.phase-chain b {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+  color: rgba(226, 232, 240, 0.82);
+  font-size: 11px;
+  font-weight: 650;
+  padding: 4px 8px;
+}
+
+.phase-chain i {
+  color: rgba(226, 232, 240, 0.42);
   font-style: normal;
 }
 

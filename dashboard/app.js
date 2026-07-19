@@ -239,11 +239,17 @@
       return `<div class="empty">选择一条 trace 查看完整时间线。</div>`;
     }
     const summary = detail.summary || {};
+    const story = summary.story || {};
     return `<div class="trace-detail">
       <div class="trace-request">
         <span>用户请求</span>
         <strong>${escapeHtml(summary.user_request || "暂无请求摘要")}</strong>
         ${summary.scenario_label ? `<em>${escapeHtml(summary.scenario_label)}</em>` : ""}
+      </div>
+      <div class="trace-story">
+        <span>任务故事</span>
+        <strong>${escapeHtml(story.summary || "暂无阶段归纳")}</strong>
+        ${story.phases && story.phases.length ? `<div class="phase-chain">${story.phases.map((phase) => `<b>${escapeHtml(phase)}</b>`).join("<i>→</i>")}</div>` : ""}
       </div>
       <div class="trace-summary">
         ${kpi("Trace", shortId(summary.trace_id))}

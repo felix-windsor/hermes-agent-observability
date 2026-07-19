@@ -197,6 +197,65 @@ def _first_payload_value(rows: list[dict[str, Any]], key: str) -> str:
     return ""
 
 
+def _build_trace_story(rows: list[dict[str, Any]], failures: list[dict[str, Any]]) -> dict[str, Any]:
+    llm_calls = sum(1 for row in rows if row.get("event_type") == "llm.completed")
+    tool_calls = sum(1 for row in rows if row.get("event_type") == "tool.completed")
+    skill_calls = sum(1 for row in rows if row.get("event_type") == "skill.used")
+    failed_tools = [
+        row
+        for row in rows
+        if row.get("event_type") == "tool.completed" and row.get("status") == "error"
+    ]
+    task_failed = any(row.get("event_type") == "task.failed" for row in rows)
+    task_completed = any(row.get("event_type") == "task.completed" for row in rows)
+    failure_seen = bool(failed_tools or failures)
+
+    phases = ["规划"]
+    if skill_calls:
+        phases.append("Skill 准备")
+    if tool_calls:
+        phases.append("工具执行")
+    if failure_seen:
+        phases.append("失败分析")
+    if failed_tools and _has_success_after_failure(rows):
+        phases.append("重试恢复")
+    phases.append("失败收尾" if task_failed else "完成" if task_completed else "未完成")
+
+    outcome = "最终失败" if task_failed else "最终成功" if task_completed else "尚未完成"
+    retry_text = "，失败后通过后续工具调用恢复" if failed_tools and _has_success_after_failure(rows) else ""
+    skill_text = f"，触发 {skill_calls} 次 Skill" if skill_calls else ""
+    failure_text = f"，出现 {len(failures)} 个失败信号" if failures else "，未出现失败信号"
+    summary = (
+        f"本次任务经历 {llm_calls} 次 LLM 调用、{tool_calls} 次工具调用"
+        f"{skill_text}{failure_text}{retry_text}，{outcome}。"
+    )
+
+    return {
+        "phases": phases,
+        "summary": summary,
+        "outcome": outcome,
+        "llm_calls": llm_calls,
+        "tool_calls": tool_calls,
+        "skill_calls": skill_calls,
+        "failure_signals": len(failures),
+        "recovered_after_failure": bool(failed_tools and _has_success_after_failure(rows)),
+    }
+
+
+def _has_success_after_failure(rows: list[dict[str, Any]]) -> bool:
+    seen_failure = False
+    for row in rows:
+        if row.get("event_type") == "tool.completed" and row.get("status") == "error":
+            seen_failure = True
+        elif (
+            seen_failure
+            and row.get("event_type") == "tool.completed"
+            and row.get("status") == "success"
+        ):
+            return True
+    return False
+
+
 @app.get("/api/overview")
 def overview(range: str = Query("24h"), scenario: str = Query("all")) -> dict[str, Any]:
     where_sql, params = _where_filters(range, scenario)
@@ -358,6 +417,7 @@ def trace_detail(trace_id: str) -> dict[str, Any]:
     for failure in failures:
         failure["failure_category"] = classify_failure(failure)
 
+    story = _build_trace_story(result, failures)
     summary = {
         "trace_id": trace_id,
         "task_id": result[-1].get("task_id") or result[0].get("task_id") or "",
@@ -371,6 +431,7 @@ def trace_detail(trace_id: str) -> dict[str, Any]:
         "observed_duration_ms": sum(int(row["duration_ms"]) for row in result if row.get("duration_ms") is not None),
         "user_request": _first_payload_value(result, "user_request"),
         "scenario_label": _first_payload_value(result, "scenario_label"),
+        "story": story,
     }
     return {"trace_id": trace_id, "summary": summary, "events": result, "failures": failures}
 
