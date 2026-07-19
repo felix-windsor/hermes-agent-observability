@@ -106,6 +106,34 @@ button.active {
   padding: 10px 12px;
 }
 
+.scenario-strip {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.scenario-strip button {
+  align-items: flex-start;
+  background: rgba(2, 6, 23, 0.34);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 72px;
+  padding: 10px;
+  text-align: left;
+}
+
+.scenario-strip button strong {
+  font-size: 13px;
+}
+
+.scenario-strip button span {
+  color: rgba(226, 232, 240, 0.58);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .banner.error,
 .error {
   color: #fda4af;
@@ -260,6 +288,32 @@ pre {
   gap: 14px;
 }
 
+.trace-request {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+}
+
+.trace-request span {
+  color: rgba(186, 230, 253, 0.78);
+  font-size: 11px;
+}
+
+.trace-request strong {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.trace-request em {
+  color: rgba(226, 232, 240, 0.6);
+  font-size: 12px;
+  font-style: normal;
+}
+
 .trace-summary {
   display: grid;
   gap: 8px;
@@ -359,6 +413,10 @@ footer {
 
   .kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .scenario-strip {
+    grid-template-columns: 1fr;
   }
 
   .grid,

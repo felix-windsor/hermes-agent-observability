@@ -17,6 +17,13 @@ from collector import store
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD_DIR = APP_ROOT / "dashboard"
+SCENARIOS = [
+    {"id": "all", "label": "全部场景", "description": "展示所有样例 trace", "task_ids": []},
+    {"id": "code_fix", "label": "正常代码修复", "description": "代码修改、测试验证和任务完成链路", "task_ids": ["task-code-fix"]},
+    {"id": "permission", "label": "权限失败排查", "description": "权限错误、修复动作和重试结果", "task_ids": ["task-permission"]},
+    {"id": "timeout", "label": "工具超时重试", "description": "远程请求超时和后续成功重试", "task_ids": ["task-timeout"]},
+    {"id": "skill", "label": "Skill 触发分析", "description": "研究类任务中的 Skill 使用链路", "task_ids": ["task-research"]},
+]
 
 
 @asynccontextmanager
@@ -49,11 +56,37 @@ def _range_start(range_name: str = "24h") -> Optional[str]:
     return (now - timedelta(hours=24)).isoformat()
 
 
-def _where_range(range_name: str, prefix: str = "WHERE") -> tuple[str, list[Any]]:
+def _scenario_task_ids(scenario: str = "all") -> list[str]:
+    value = (scenario or "all").strip().lower()
+    for item in SCENARIOS:
+        if item["id"] == value:
+            return list(item["task_ids"])
+    return []
+
+
+def _filter_clauses(range_name: str = "24h", scenario: str = "all") -> tuple[list[str], list[Any]]:
+    clauses: list[str] = []
+    params: list[Any] = []
     start = _range_start(range_name)
-    if not start:
+    if start:
+        clauses.append("created_at >= ?")
+        params.append(start)
+    task_ids = _scenario_task_ids(scenario)
+    if task_ids:
+        clauses.append("task_id IN (" + ",".join("?" for _ in task_ids) + ")")
+        params.extend(task_ids)
+    return clauses, params
+
+
+def _where_filters(range_name: str = "24h", scenario: str = "all", prefix: str = "WHERE") -> tuple[str, list[Any]]:
+    clauses, params = _filter_clauses(range_name, scenario)
+    if not clauses:
         return "", []
-    return f"{prefix} created_at >= ?", [start]
+    return f"{prefix} " + " AND ".join(clauses), params
+
+
+def _and_filters(range_name: str = "24h", scenario: str = "all") -> tuple[str, list[Any]]:
+    return _where_filters(range_name, scenario, prefix="AND")
 
 
 def _payload(row: dict[str, Any]) -> dict[str, Any]:
@@ -114,9 +147,18 @@ def _decorate_failure(row: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
+def _first_payload_value(rows: list[dict[str, Any]], key: str) -> str:
+    for row in rows:
+        payload = row.get("payload")
+        if isinstance(payload, dict) and payload.get(key):
+            return str(payload[key])
+    return ""
+
+
 @app.get("/api/overview")
-def overview(range: str = Query("24h")) -> dict[str, Any]:
-    where_sql, params = _where_range(range)
+def overview(range: str = Query("24h"), scenario: str = Query("all")) -> dict[str, Any]:
+    where_sql, params = _where_filters(range, scenario)
+    and_sql, and_params = _and_filters(range, scenario)
     with store.connect() as conn:
         totals = dict(conn.execute(
             f"""
@@ -153,11 +195,11 @@ def overview(range: str = Query("24h")) -> dict[str, Any]:
                    MAX(created_at) AS last_seen
             FROM events
             WHERE event_type = 'tool.completed'
-            {"AND created_at >= ?" if params else ""}
+            {and_sql}
             GROUP BY name
             ORDER BY count DESC, avg_ms DESC
             LIMIT 12
-            """, params)
+            """, and_params)
         skills = _rows(conn, f"""
             SELECT name,
                    COUNT(*) AS count,
@@ -165,11 +207,11 @@ def overview(range: str = Query("24h")) -> dict[str, Any]:
                    MAX(created_at) AS last_seen
             FROM events
             WHERE event_type = 'skill.used'
-            {"AND created_at >= ?" if params else ""}
+            {and_sql}
             GROUP BY name
             ORDER BY count DESC, last_seen DESC
             LIMIT 12
-            """, params)
+            """, and_params)
         failures = [
             _decorate_failure(row)
             for row in _rows(conn, f"""
@@ -180,10 +222,10 @@ def overview(range: str = Query("24h")) -> dict[str, Any]:
                     status IN ('error', 'interrupted')
                     OR event_type IN ('task.failed', 'task.interrupted')
                 )
-                {"AND created_at >= ?" if params else ""}
+                {and_sql}
                 ORDER BY created_at DESC
                 LIMIT 12
-            """, params)
+            """, and_params)
         ]
         failure_categories: dict[str, dict[str, Any]] = {}
         for failure in failures:
@@ -212,6 +254,8 @@ def overview(range: str = Query("24h")) -> dict[str, Any]:
 
     return {
         "range": range,
+        "scenario": scenario,
+        "scenarios": [{key: value for key, value in item.items() if key != "task_ids"} for item in SCENARIOS],
         "paths": {"sqlite": str(store.sqlite_path()), "jsonl": str(store.events_jsonl_path())},
         "totals": totals,
         "event_types": event_types,
@@ -224,8 +268,12 @@ def overview(range: str = Query("24h")) -> dict[str, Any]:
 
 
 @app.get("/api/events")
-def events(limit: int = Query(30, ge=1, le=500), range: str = Query("24h")) -> dict[str, Any]:
-    where_sql, params = _where_range(range)
+def events(
+    limit: int = Query(30, ge=1, le=500),
+    range: str = Query("24h"),
+    scenario: str = Query("all"),
+) -> dict[str, Any]:
+    where_sql, params = _where_filters(range, scenario)
     with store.connect() as conn:
         result = [
             _payload(row)
@@ -279,23 +327,41 @@ def trace_detail(trace_id: str) -> dict[str, Any]:
         "started_at": result[0]["created_at"],
         "ended_at": result[-1]["created_at"],
         "observed_duration_ms": sum(int(row["duration_ms"]) for row in result if row.get("duration_ms") is not None),
+        "user_request": _first_payload_value(result, "user_request"),
+        "scenario_label": _first_payload_value(result, "scenario_label"),
     }
     return {"trace_id": trace_id, "summary": summary, "events": result, "failures": failures}
 
 
 @app.get("/api/export")
-def export(limit: int = Query(1000, ge=1, le=5000), range: str = Query("24h")) -> dict[str, str]:
-    path = store.export_events(limit=_limit(limit, default=1000, maximum=5000), started_after=_range_start(range))
+def export(
+    limit: int = Query(1000, ge=1, le=5000),
+    range: str = Query("24h"),
+    scenario: str = Query("all"),
+) -> dict[str, str]:
+    path = store.export_events(
+        limit=_limit(limit, default=1000, maximum=5000),
+        started_after=_range_start(range),
+        task_ids=_scenario_task_ids(scenario),
+    )
     return {"path": str(path)}
 
 
 @app.get("/api/export/download")
-def export_download(limit: int = Query(1000, ge=1, le=5000), range: str = Query("24h")) -> FileResponse:
-    path = store.export_events(limit=_limit(limit, default=1000, maximum=5000), started_after=_range_start(range))
+def export_download(
+    limit: int = Query(1000, ge=1, le=5000),
+    range: str = Query("24h"),
+    scenario: str = Query("all"),
+) -> FileResponse:
+    path = store.export_events(
+        limit=_limit(limit, default=1000, maximum=5000),
+        started_after=_range_start(range),
+        task_ids=_scenario_task_ids(scenario),
+    )
     return FileResponse(
         path,
         media_type="application/json",
-        filename=f"agent-observability-{range}.json",
+        filename=f"agent-observability-{scenario}-{range}.json",
     )
 
 

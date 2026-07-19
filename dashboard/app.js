@@ -4,6 +4,8 @@
   const app = document.getElementById("app");
   const state = {
     range: "24h",
+    scenario: "all",
+    scenarios: [],
     overview: null,
     events: [],
     trace: null,
@@ -18,6 +20,14 @@
     ["24h", "24 小时"],
     ["7d", "7 天"],
     ["all", "全部"],
+  ];
+
+  const defaultScenarios = [
+    { id: "all", label: "全部场景", description: "展示所有样例 trace" },
+    { id: "code_fix", label: "正常代码修复", description: "代码修改、测试验证和任务完成链路" },
+    { id: "permission", label: "权限失败排查", description: "权限错误、修复动作和重试结果" },
+    { id: "timeout", label: "工具超时重试", description: "远程请求超时和后续成功重试" },
+    { id: "skill", label: "Skill 触发分析", description: "研究类任务中的 Skill 使用链路" },
   ];
 
   const eventLabels = {
@@ -90,14 +100,17 @@
   async function load() {
     state.loading = true;
     state.error = "";
+    state.exportMessage = "";
     render();
     try {
+      const query = "?range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario);
       const [overview, recent] = await Promise.all([
-        getJSON("/api/overview?range=" + encodeURIComponent(state.range)),
-        getJSON("/api/events?limit=30&range=" + encodeURIComponent(state.range)),
+        getJSON("/api/overview" + query),
+        getJSON("/api/events?limit=30&range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario)),
       ]);
       state.overview = overview;
       state.events = recent.events || [];
+      state.scenarios = overview.scenarios || defaultScenarios;
       if (!state.selectedTraceId && overview.traces && overview.traces.length) {
         state.selectedTraceId = overview.traces[0].trace_id;
       }
@@ -125,7 +138,7 @@
   }
 
   async function exportEvents() {
-    const url = "/api/export/download?range=" + encodeURIComponent(state.range) + "&limit=1000";
+    const url = "/api/export/download?range=" + encodeURIComponent(state.range) + "&scenario=" + encodeURIComponent(state.scenario) + "&limit=1000";
     const link = document.createElement("a");
     link.href = url;
     link.download = "agent-observability-" + state.range + ".json";
@@ -143,15 +156,22 @@
     await load();
   }
 
+  async function changeScenario(scenario) {
+    state.scenario = scenario;
+    state.selectedTraceId = "";
+    state.trace = null;
+    await load();
+  }
+
   function kpi(label, value, hint) {
     return `<div class="kpi"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong>${hint ? `<small>${escapeHtml(hint)}</small>` : ""}</div>`;
   }
 
-  function bars(rows, labelKey = "name") {
+  function bars(rows, labelKey = "name", labelFn = null) {
     if (!rows || !rows.length) return `<div class="empty">暂无数据。</div>`;
     const max = Math.max(1, ...rows.map((row) => Number(row.count || 0)));
     return `<div class="bars">${rows.map((row) => {
-      const label = row.label || row[labelKey] || row.name;
+      const label = labelFn ? labelFn(row) : row.label || row[labelKey] || row.name;
       const width = Math.max(4, Math.round((Number(row.count || 0) / max) * 100));
       return `<div class="bar-row">
         <span title="${escapeHtml(label)}">${escapeHtml(label)}</span>
@@ -220,6 +240,11 @@
     }
     const summary = detail.summary || {};
     return `<div class="trace-detail">
+      <div class="trace-request">
+        <span>用户请求</span>
+        <strong>${escapeHtml(summary.user_request || "暂无请求摘要")}</strong>
+        ${summary.scenario_label ? `<em>${escapeHtml(summary.scenario_label)}</em>` : ""}
+      </div>
       <div class="trace-summary">
         ${kpi("Trace", shortId(summary.trace_id))}
         ${kpi("事件", fmtNumber(summary.events))}
@@ -254,10 +279,11 @@
   function render() {
     const data = state.overview || { totals: {}, event_types: [], failure_categories: [], traces: [], tools: [], skills: [], failures: [] };
     const totals = data.totals || {};
+    const scenarios = state.scenarios.length ? state.scenarios : defaultScenarios;
     app.innerHTML = `
       <header class="hero">
         <div>
-          <p class="eyebrow">Agent Observability Portfolio Demo</p>
+          <p class="eyebrow">Agent 观测作品集 Demo</p>
           <h1>Hermes Agent 观测看板</h1>
           <p class="subtitle">展示 trace 时间线、工具调用、Skill 使用、失败分类和可导出的运行事件。</p>
         </div>
@@ -268,6 +294,12 @@
           <button data-action="reset">重置样例</button>
         </div>
       </header>
+      <section class="scenario-strip">
+        ${scenarios.map((item) => `<button data-scenario="${escapeHtml(item.id)}" class="${state.scenario === item.id ? "active" : ""}">
+          <strong>${escapeHtml(item.label)}</strong>
+          <span>${escapeHtml(item.description || "")}</span>
+        </button>`).join("")}
+      </section>
       ${state.error ? `<div class="banner error">${escapeHtml(state.error)}</div>` : ""}
       ${state.exportMessage ? `<div class="banner">${escapeHtml(state.exportMessage)}</div>` : ""}
       <section class="kpis">
@@ -279,7 +311,7 @@
         ${kpi("LLM 平均耗时", fmtMs(totals.avg_llm_ms))}
       </section>
       <section class="grid">
-        ${panel("事件类型分布", bars(data.event_types))}
+        ${panel("事件类型分布", bars(data.event_types, "name", (row) => eventLabel(row.name)))}
         ${panel("失败原因分类", bars(data.failure_categories, "code"))}
       </section>
       <section class="grid traces">
@@ -319,6 +351,9 @@
         state.trace = null;
         await load();
       });
+    });
+    document.querySelectorAll("[data-scenario]").forEach((button) => {
+      button.addEventListener("click", () => changeScenario(button.dataset.scenario));
     });
     document.querySelectorAll("[data-trace-id]").forEach((row) => {
       row.addEventListener("click", () => loadTrace(row.dataset.traceId));

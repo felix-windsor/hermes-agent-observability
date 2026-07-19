@@ -9,7 +9,7 @@ import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, Sequence
 
 _LOCK = threading.RLock()
 _SCHEMA_READY_FOR: set[str] = set()
@@ -160,9 +160,21 @@ def event_count() -> int:
         return int(conn.execute("SELECT COUNT(*) FROM events").fetchone()[0] or 0)
 
 
-def export_events(limit: int = 1000, started_after: Optional[str] = None) -> Path:
-    where_sql = "WHERE created_at >= ?" if started_after else ""
-    params: tuple[Any, ...] = (started_after, limit) if started_after else (limit,)
+def export_events(
+    limit: int = 1000,
+    started_after: Optional[str] = None,
+    task_ids: Optional[Sequence[str]] = None,
+) -> Path:
+    clauses = []
+    params: list[Any] = []
+    if started_after:
+        clauses.append("created_at >= ?")
+        params.append(started_after)
+    if task_ids:
+        clauses.append("task_id IN (" + ",".join("?" for _ in task_ids) + ")")
+        params.extend(task_ids)
+    where_sql = "WHERE " + " AND ".join(clauses) if clauses else ""
+    params.append(limit)
     with connect() as conn:
         result = rows(
             conn,
@@ -202,19 +214,24 @@ def seed_sample_data(force: bool = False) -> None:
         events_jsonl_path().unlink()
 
     samples = [
-        ("task-code-fix", -52, "修复 auth refresh 相关的 pytest 失败", "terminal", "success", 410),
-        ("task-code-fix", -51, "修复 auth refresh 相关的 pytest 失败", "read_file", "success", 160),
-        ("task-code-fix", -50, "修复 auth refresh 相关的 pytest 失败", "apply_patch", "success", 90),
-        ("task-code-fix", -48, "修复 auth refresh 相关的 pytest 失败", "terminal", "success", 1230),
-        ("task-permission", -38, "从 home 目录启动 dashboard", "terminal", "error", 75),
-        ("task-permission", -37, "从 home 目录启动 dashboard", "terminal", "success", 180),
-        ("task-research", -24, "总结 Agent 观测机制的常见模式", "web_search", "success", 860),
-        ("task-research", -23, "总结 Agent 观测机制的常见模式", "skill_view", "success", 40),
-        ("task-timeout", -13, "拉取远程 trace 导出文件", "http_fetch", "error", 10000),
-        ("task-timeout", -12, "拉取远程 trace 导出文件", "http_fetch", "success", 1450),
+        ("task-code-fix", "code_fix", "正常代码修复", -52, "修复 auth refresh 相关的 pytest 失败", "terminal", "success", 410),
+        ("task-code-fix", "code_fix", "正常代码修复", -51, "修复 auth refresh 相关的 pytest 失败", "read_file", "success", 160),
+        ("task-code-fix", "code_fix", "正常代码修复", -50, "修复 auth refresh 相关的 pytest 失败", "apply_patch", "success", 90),
+        ("task-code-fix", "code_fix", "正常代码修复", -48, "修复 auth refresh 相关的 pytest 失败", "terminal", "success", 1230),
+        ("task-permission", "permission", "权限失败排查", -38, "从 home 目录启动 dashboard", "terminal", "error", 75),
+        ("task-permission", "permission", "权限失败排查", -37, "从 home 目录启动 dashboard", "terminal", "success", 180),
+        ("task-research", "skill", "Skill 触发分析", -24, "总结 Agent 观测机制的常见模式", "web_search", "success", 860),
+        ("task-research", "skill", "Skill 触发分析", -23, "总结 Agent 观测机制的常见模式", "skill_view", "success", 40),
+        ("task-timeout", "timeout", "工具超时重试", -13, "拉取远程 trace 导出文件", "http_fetch", "error", 10000),
+        ("task-timeout", "timeout", "工具超时重试", -12, "拉取远程 trace 导出文件", "http_fetch", "success", 1450),
     ]
 
-    for task_id, minute, user_message, tool_name, status, tool_ms in samples:
+    for task_id, scenario, scenario_label, minute, user_message, tool_name, status, tool_ms in samples:
+        base_payload = {
+            "scenario": scenario,
+            "scenario_label": scenario_label,
+            "user_request": user_message,
+        }
         record_event(
             event_type="llm.requested",
             task_id=task_id,
@@ -224,7 +241,7 @@ def seed_sample_data(force: bool = False) -> None:
             status="started",
             model="gpt-5",
             provider="demo",
-            payload={"user_message": text_summary(user_message), "message_count": 2},
+            payload={**base_payload, "user_message": text_summary(user_message), "message_count": 2},
             created_at=_at(minute),
         )
         record_event(
@@ -237,7 +254,7 @@ def seed_sample_data(force: bool = False) -> None:
             duration_ms=2100 + (tool_ms // 3),
             model="gpt-5",
             provider="demo",
-            payload={"finish_reason": "tool_calls"},
+            payload={**base_payload, "finish_reason": "tool_calls"},
             created_at=_at(minute + 1),
         )
         if tool_name == "skill_view":
@@ -248,7 +265,7 @@ def seed_sample_data(force: bool = False) -> None:
                 span_type="skill",
                 name="researcher",
                 status="success",
-                payload={"source": "skill_view"},
+                payload={**base_payload, "source": "skill_view"},
                 created_at=_at(minute + 2),
             )
         record_event(
@@ -259,7 +276,7 @@ def seed_sample_data(force: bool = False) -> None:
             name=tool_name,
             status=status,
             duration_ms=tool_ms,
-            payload={"error": _sample_error(tool_name) if status == "error" else "", "ok": status == "success"},
+            payload={**base_payload, "error": _sample_error(tool_name) if status == "error" else "", "ok": status == "success"},
             created_at=_at(minute + 3),
         )
         record_event(
@@ -269,7 +286,7 @@ def seed_sample_data(force: bool = False) -> None:
             span_type="task",
             name="agent_task",
             status="error" if status == "error" else "success",
-            payload={"final_response_chars": 420, "failed": status == "error"},
+            payload={**base_payload, "final_response_chars": 420, "failed": status == "error"},
             created_at=_at(minute + 4),
         )
 

@@ -4,6 +4,8 @@
 
 这个项目是从真实 Hermes Agent 插件中抽出来的独立展示版。Hermes 分支负责说明“如何接入真实 Agent 运行时”，这个仓库负责提供“打开就能看的作品集 demo”。
 
+![观测看板截图](docs/assets/dashboard.png)
+
 ## 为什么做
 
 Agent 系统经常像黑盒。用户只能看到最终回答，但看不到：
@@ -16,6 +18,17 @@ Agent 系统经常像黑盒。用户只能看到最终回答，但看不到：
 
 这个项目把 Agent 的运行步骤抽象成结构化事件，并通过本地看板展示出来，形成一个小而完整的分析闭环。
 
+## 架构图
+
+```mermaid
+flowchart LR
+  A["Agent hooks<br/>LLM / Tool / Skill / Task"] --> B["Event Store<br/>JSONL + SQLite"]
+  B --> C["Analytics API<br/>聚合统计 / Trace 详情 / 导出"]
+  C --> D["Dashboard<br/>场景筛选 / 时间线 / 失败分类"]
+  D --> E["Optimization Loop<br/>定位问题 -> 修改 Agent -> 对比结果"]
+  E --> A
+```
+
 ## 功能
 
 - 本地 JSONL + SQLite 事件存储
@@ -23,7 +36,9 @@ Agent 系统经常像黑盒。用户只能看到最终回答，但看不到：
 - 静态 Dashboard，无需前端构建
 - 首次启动自动生成样例数据
 - 时间范围筛选：1 小时、24 小时、7 天、全部
+- 样例场景切换：正常代码修复、权限失败排查、工具超时重试、Skill 触发分析
 - Trace 详情时间线
+- Trace 顶部展示用户请求摘要
 - Tool 性能表
 - Skill 使用表
 - 失败原因分类
@@ -85,15 +100,16 @@ task.interrupted
 ## Dashboard API
 
 ```text
-GET /api/overview?range=24h
-GET /api/events?range=24h&limit=30
+GET /api/overview?range=24h&scenario=all
+GET /api/events?range=24h&scenario=all&limit=30
 GET /api/traces/{trace_id}
-GET /api/export?range=24h&limit=1000
-GET /api/export/download?range=24h&limit=1000
+GET /api/export?range=24h&scenario=all&limit=1000
+GET /api/export/download?range=24h&scenario=all&limit=1000
 POST /api/demo/reset
 ```
 
 支持的时间范围是 `1h`、`24h`、`7d`、`all`。
+支持的样例场景是 `all`、`code_fix`、`permission`、`timeout`、`skill`。
 
 ## 优化闭环
 

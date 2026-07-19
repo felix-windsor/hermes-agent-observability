@@ -38,6 +38,16 @@ GET /api/export/download?range=24h&limit=1000
 POST /api/demo/reset
 ```
 
+`overview`、`events`、`export` 和 `export/download` 支持 `scenario` 参数，用来切换样例故事：
+
+```text
+all
+code_fix
+permission
+timeout
+skill
+```
+
 失败分类第一版使用规则判断，保持结果稳定、容易解释：
 
 ```text
