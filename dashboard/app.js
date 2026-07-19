@@ -217,14 +217,18 @@
   }
 
   function opportunityTable(rows) {
-    if (!rows || !rows.length) return `<div class="empty">暂无专项 Agent 候选。</div>`;
-    return `<table class="clickable opportunity-table"><thead><tr><th>部门</th><th>候选方向</th><th>业务流程</th><th>Trace</th><th>成功率</th><th>节省时间</th><th>风险</th><th>机会分</th><th>建议</th></tr></thead><tbody>
+    if (!rows || !rows.length) return `<div class="empty">暂无部门内专项化候选。</div>`;
+    return `<table class="clickable opportunity-table"><thead><tr><th>部门通用 Agent</th><th>可细化 Skill</th><th>全流程专项 Agent</th><th>业务流程</th><th>Trace</th><th>成功率</th><th>节省时间</th><th>风险</th><th>机会分</th><th>落地建议</th></tr></thead><tbody>
       ${rows.map((row) => `<tr data-trace-id="${escapeHtml(row.primary_trace_id)}">
-        <td>${escapeHtml(row.department_label)}</td>
         <td>
-          <strong>${escapeHtml(row.agent_candidate)}</strong>
+          <strong>${escapeHtml(row.department_agent || row.department_label)}</strong>
+          <small>${escapeHtml(row.department_label)}</small>
+        </td>
+        <td>
+          <strong>${escapeHtml(row.capability_candidate || row.workflow_label)}</strong>
           <small>${escapeHtml(row.candidate_skill)}</small>
         </td>
+        <td>${escapeHtml(row.specialized_agent_candidate || row.agent_candidate)}</td>
         <td>${escapeHtml(row.workflow_label)}</td>
         <td>${fmtNumber(row.trace_count)}</td>
         <td>${fmtPercent(row.success_rate)}</td>
@@ -292,10 +296,11 @@
         <ul>${story.next_actions.map((action) => `<li>${escapeHtml(action)}</li>`).join("")}</ul>
       </div>` : ""}
       ${opportunity.agent_candidate ? `<div class="trace-opportunity">
-        <span>专项 Agent 判断</span>
+        <span>部门内专项化判断</span>
         <strong>${escapeHtml(opportunity.recommendation)}</strong>
         <div class="opportunity-meta">
-          <b>${escapeHtml(opportunity.department_label)}</b>
+          <b>${escapeHtml(opportunity.department_agent || opportunity.department_label)}</b>
+          <b>${escapeHtml(opportunity.capability_candidate || opportunity.candidate_skill)}</b>
           <b>${escapeHtml(opportunity.workflow_label)}</b>
           <b>自动化适配：${escapeHtml(opportunity.automation_fit_label)}</b>
           <b>风险：${escapeHtml(opportunity.risk_label)}</b>
@@ -340,7 +345,7 @@
       <header class="hero">
         <div>
           <h1>Hermes Agent 观测看板</h1>
-          <p class="subtitle">展示 trace 时间线、工具调用、Skill 使用、失败分类和专项 Agent 候选机会。</p>
+          <p class="subtitle">展示 trace 时间线、工具调用、Skill 使用、失败分类和部门内专项化机会。</p>
         </div>
         <div class="actions">
           <div class="ranges">${ranges.map(([key, label]) => `<button data-range="${key}" class="${state.range === key ? "active" : ""}">${label}</button>`).join("")}</div>
@@ -366,7 +371,7 @@
         ${kpi("LLM 平均耗时", fmtMs(totals.avg_llm_ms))}
       </section>
       <section class="single">
-        ${panel("专项 Agent 候选", opportunityTable(data.opportunities))}
+        ${panel("部门内专项 Agent 候选", opportunityTable(data.opportunities))}
       </section>
       <section class="grid">
         ${panel("事件类型分布", bars(data.event_types, "name", (row) => eventLabel(row.name)))}

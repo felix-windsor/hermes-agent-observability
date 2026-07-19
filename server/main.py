@@ -386,13 +386,19 @@ def _business_context(row: dict[str, Any]) -> dict[str, Any]:
     else:
         fallback = (scenario or "unknown", "未归属部门", scenario or "unknown", "未归属流程", "unknown-skill", "待评估专项 Agent")
 
+    department_label = str(payload.get("department_label") or fallback[1])
+    workflow_label = str(payload.get("workflow_label") or fallback[3])
+    agent_candidate = str(payload.get("agent_candidate") or fallback[5])
     return {
         "department": str(payload.get("department") or fallback[0]),
-        "department_label": str(payload.get("department_label") or fallback[1]),
+        "department_label": department_label,
+        "department_agent": str(payload.get("department_agent") or f"{department_label}通用 Agent"),
         "workflow": str(payload.get("workflow") or fallback[2]),
-        "workflow_label": str(payload.get("workflow_label") or fallback[3]),
+        "workflow_label": workflow_label,
         "candidate_skill": str(payload.get("candidate_skill") or fallback[4]),
-        "agent_candidate": str(payload.get("agent_candidate") or fallback[5]),
+        "capability_candidate": str(payload.get("capability_candidate") or f"{workflow_label}专项能力"),
+        "agent_candidate": agent_candidate,
+        "specialized_agent_candidate": str(payload.get("specialized_agent_candidate") or agent_candidate),
         "estimated_manual_minutes": _payload_int(payload.get("estimated_manual_minutes"), 20),
         "human_intervention": _payload_bool(payload.get("human_intervention")),
         "automation_fit": str(payload.get("automation_fit") or "medium"),
@@ -414,12 +420,12 @@ def _risk_label(risk_level: str) -> str:
 
 def _opportunity_recommendation(score: int, risk_level: str, human_rate: float) -> str:
     if score >= 82 and risk_level == "low":
-        return "优先沉淀为部门级专项 Agent"
+        return "优先沉淀为部门通用 Agent 内的全流程专项 Agent"
     if score >= 72:
-        return "适合做专项 Agent 试点"
+        return "适合在部门通用 Agent 内做专项化试点"
     if score >= 58 or human_rate > 0.35:
-        return "适合先做半自动工作流"
-    return "继续观察，先补工具和结构化数据"
+        return "适合先做半自动专项流程"
+    return "继续观察，先补齐工具链和结构化数据"
 
 
 def _automation_opportunities(
@@ -485,10 +491,13 @@ def _automation_opportunities(
             {
                 "department": trace["department"],
                 "department_label": trace["department_label"],
+                "department_agent": trace["department_agent"],
                 "workflow": trace["workflow"],
                 "workflow_label": trace["workflow_label"],
                 "candidate_skill": trace["candidate_skill"],
+                "capability_candidate": trace["capability_candidate"],
                 "agent_candidate": trace["agent_candidate"],
+                "specialized_agent_candidate": trace["specialized_agent_candidate"],
                 "risk_level": trace["risk_level"],
                 "automation_fit": trace["automation_fit"],
                 "trace_count": 0,
@@ -555,6 +564,10 @@ def _automation_opportunities(
             f"{trace_count} 条 trace，成功率 {round(success_rate * 100)}%，"
             f"预计节省 {group['estimated_saved_minutes']} 分钟。"
         )
+        group["positioning"] = (
+            f"在「{group['department_agent']}」内部，把「{group['capability_candidate']}」"
+            f"细化成「{group['specialized_agent_candidate']}」。"
+        )
         opportunities.append(group)
 
     return sorted(
@@ -573,8 +586,8 @@ def _trace_automation_opportunity(rows: list[dict[str, Any]], failures: list[dic
         "risk_label": _risk_label(context["risk_level"]),
         "automation_fit_label": fit_text,
         "recommendation": (
-            f"归属「{context['department_label']} / {context['workflow_label']}」，"
-            f"候选方向是「{context['agent_candidate']}」，{status_text}。"
+            f"归属「{context['department_agent']}」，可把「{context['capability_candidate']}」"
+            f"细化为「{context['specialized_agent_candidate']}」，{status_text}。"
         ),
     }
 

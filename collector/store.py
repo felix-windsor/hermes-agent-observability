@@ -821,4 +821,10 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
         "automation_fit": "medium",
         "risk_level": "medium",
     }
-    return contexts.get(task_id, fallback)
+    context = dict(contexts.get(task_id, fallback))
+    context["department_agent"] = context.get("department_agent") or f"{context['department_label']}通用 Agent"
+    context["capability_candidate"] = context.get("capability_candidate") or f"{context['workflow_label']}专项能力"
+    context["specialized_agent_candidate"] = (
+        context.get("specialized_agent_candidate") or context["agent_candidate"]
+    )
+    return context

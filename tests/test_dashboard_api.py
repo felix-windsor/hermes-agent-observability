@@ -51,6 +51,8 @@ def test_trace_detail_returns_timeline(monkeypatch, tmp_path):
     assert detail["summary"]["story"]["summary"]
     assert "规划" in detail["summary"]["story"]["phases"]
     assert detail["summary"]["automation_opportunity"]["agent_candidate"]
+    assert detail["summary"]["automation_opportunity"]["department_agent"]
+    assert detail["summary"]["automation_opportunity"]["capability_candidate"]
 
 
 def test_range_filter_and_export(monkeypatch, tmp_path):
@@ -132,7 +134,10 @@ def test_automation_opportunities_rank_department_agent_candidates(monkeypatch, 
     )
 
     assert engineering["agent_candidate"] == "研发测试修复 Agent"
+    assert engineering["department_agent"] == "研发部通用 Agent"
+    assert engineering["capability_candidate"] == "测试失败修复专项能力"
+    assert engineering["specialized_agent_candidate"] == "研发测试修复 Agent"
     assert engineering["trace_count"] >= 2
     assert engineering["estimated_saved_minutes"] >= 70
-    assert engineering["recommendation"]
+    assert "部门通用 Agent" in engineering["recommendation"]
     assert engineering["primary_trace_id"]

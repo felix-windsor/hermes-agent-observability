@@ -1,6 +1,6 @@
 # Hermes Agent 观测看板
 
-一个独立的 Agent Observability 作品集 demo：展示 trace 时间线、工具调用、Skill 使用、失败分类、专项 Agent 候选分析、本地存储和可导出的运行事件。
+一个独立的 Agent Observability 作品集 demo：展示 trace 时间线、工具调用、Skill 使用、失败分类、部门内专项化分析、本地存储和可导出的运行事件。
 
 这个项目是从真实 Hermes Agent 插件中抽出来的独立展示版。Hermes 分支负责说明“如何接入真实 Agent 运行时”，这个仓库负责提供“打开就能看的作品集 demo”。
 
@@ -15,9 +15,9 @@ Agent 系统经常像黑盒。用户只能看到最终回答，但看不到：
 - 延迟耗在哪里
 - 任务为什么失败
 - 修改 prompt、tool 或 skill 后效果有没有变好
-- 哪些部门场景值得沉淀成专项 Agent
+- 部门通用 Agent 内部哪些 Skill 值得细化成全流程专项 Agent
 
-这个项目把 Agent 的运行步骤抽象成结构化事件，并通过本地看板展示出来，形成一个小而完整的分析闭环。除了排查失败，它也用运行数据判断哪些 Skill/流程值得下钻到具体部门，进一步产品化成专项 Agent。
+这个项目把 Agent 的运行步骤抽象成结构化事件，并通过本地看板展示出来，形成一个小而完整的分析闭环。除了排查失败，它也用运行数据分析部门通用 Agent 内部哪些 Skill/流程值得进一步细化，产品化成更精细的全流程专项 Agent。
 
 ## 架构图
 
@@ -26,7 +26,7 @@ flowchart LR
   A["Agent hooks<br/>LLM / Tool / Skill / Task"] --> B["Event Store<br/>JSONL + SQLite"]
   B --> C["Analytics API<br/>聚合统计 / Trace 详情 / 导出"]
   C --> D["Dashboard<br/>场景筛选 / 时间线 / 失败分类"]
-  D --> E["Opportunity Analysis<br/>部门 / 流程 / 专项 Agent 候选"]
+  D --> E["Opportunity Analysis<br/>部门通用 Agent / Skill / 专项化候选"]
   E --> F["Optimization Loop<br/>定位问题 -> 修改 Agent -> 对比结果"]
   F --> A
 ```
@@ -37,9 +37,9 @@ flowchart LR
 
 我的做法是在 Agent 的 LLM、Tool、Skill 和任务结果 hook 上采集结构化事件，用 `trace_id` 把一次用户请求串成完整链路。事件同时写入 JSONL 和 SQLite：JSONL 方便导出，SQLite 方便本地分析 API 查询。
 
-看板侧我做了整体 KPI、场景筛选、trace 时间线、用户请求摘要、任务故事归纳、失败原因分类和优化建议。进一步，我给每条 trace 补了部门、业务流程、候选 Skill、预计人工耗时和风险等级，用这些数据计算“专项 Agent 机会分”，判断哪些部门流程值得优先自动化。
+看板侧我做了整体 KPI、场景筛选、trace 时间线、用户请求摘要、任务故事归纳、失败原因分类和优化建议。进一步，我给每条 trace 补了部门通用 Agent、业务流程、可细化 Skill、预计人工耗时和风险等级，用这些数据计算“专项化机会分”。
 
-所以面试演示时可以从一条失败 trace 讲到修复建议，也可以从“专项 Agent 候选”讲到业务决策：哪些 Skill 不是只被调用过，而是真的高频、可复用、风险可控，值得下到研发、平台、数据运营等部门做专项 Agent。
+这里的假设不是“一个通用 Agent 给所有部门用”，而是每个部门都有自己的部门通用 Agent。看板要回答的是：在某个部门通用 Agent 内部，哪些 Skill 不是只被调用过，而是真的高频、可复用、风险可控，值得细化成全流程专项 Agent。
 
 ## 功能
 
@@ -55,7 +55,7 @@ flowchart LR
 - Tool 性能表
 - Skill 使用表
 - 失败原因分类与优化建议
-- 专项 Agent 候选：按部门、业务流程、成功率、人工节省时间和风险计算机会分
+- 部门内专项 Agent 候选：按部门通用 Agent、Skill、业务流程、成功率、人工节省时间和风险计算机会分
 - 网页直接下载 JSON 导出文件
 
 ## 快速启动
@@ -103,9 +103,12 @@ payload
 
 ```text
 department / department_label
+department_agent
 workflow / workflow_label
 candidate_skill
+capability_candidate
 agent_candidate
+specialized_agent_candidate
 estimated_manual_minutes
 human_intervention
 automation_fit
@@ -145,7 +148,7 @@ POST /api/demo/reset
 -> 查看整体健康度
 -> 打开失败或慢 trace
 -> 定位 tool、skill、prompt 或权限问题
--> 判断部门级专项 Agent 候选
+-> 判断部门通用 Agent 内部的专项化候选
 -> 修改 Agent 行为
 -> 对比下一次运行结果
 ```
