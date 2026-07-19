@@ -289,6 +289,16 @@ def export(limit: int = Query(1000, ge=1, le=5000), range: str = Query("24h")) -
     return {"path": str(path)}
 
 
+@app.get("/api/export/download")
+def export_download(limit: int = Query(1000, ge=1, le=5000), range: str = Query("24h")) -> FileResponse:
+    path = store.export_events(limit=_limit(limit, default=1000, maximum=5000), started_after=_range_start(range))
+    return FileResponse(
+        path,
+        media_type="application/json",
+        filename=f"agent-observability-{range}.json",
+    )
+
+
 @app.post("/api/demo/reset")
 def reset_demo_data() -> dict[str, str]:
     store.seed_sample_data(force=True)

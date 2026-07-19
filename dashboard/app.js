@@ -10,7 +10,7 @@
     selectedTraceId: "",
     loading: true,
     error: "",
-    exportPath: "",
+    exportMessage: "",
   };
 
   const ranges = [
@@ -125,8 +125,14 @@
   }
 
   async function exportEvents() {
-    const result = await getJSON("/api/export?range=" + encodeURIComponent(state.range) + "&limit=1000");
-    state.exportPath = result.path || "";
+    const url = "/api/export/download?range=" + encodeURIComponent(state.range) + "&limit=1000";
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "agent-observability-" + state.range + ".json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    state.exportMessage = "已开始下载当前时间范围的 JSON 文件。";
     render();
   }
 
@@ -263,7 +269,7 @@
         </div>
       </header>
       ${state.error ? `<div class="banner error">${escapeHtml(state.error)}</div>` : ""}
-      ${state.exportPath ? `<div class="banner">已导出到 <code>${escapeHtml(state.exportPath)}</code></div>` : ""}
+      ${state.exportMessage ? `<div class="banner">${escapeHtml(state.exportMessage)}</div>` : ""}
       <section class="kpis">
         ${kpi("事件总数", fmtNumber(totals.events))}
         ${kpi("Trace 数", fmtNumber(totals.traces))}

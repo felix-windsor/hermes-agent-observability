@@ -27,7 +27,7 @@ Agent 系统经常像黑盒。用户只能看到最终回答，但看不到：
 - Tool 性能表
 - Skill 使用表
 - 失败原因分类
-- JSON 导出
+- 网页直接下载 JSON 导出文件
 
 ## 快速启动
 
@@ -89,6 +89,7 @@ GET /api/overview?range=24h
 GET /api/events?range=24h&limit=30
 GET /api/traces/{trace_id}
 GET /api/export?range=24h&limit=1000
+GET /api/export/download?range=24h&limit=1000
 POST /api/demo/reset
 ```
 

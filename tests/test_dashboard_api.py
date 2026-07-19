@@ -51,6 +51,10 @@ def test_range_filter_and_export(monkeypatch, tmp_path):
     one_hour = client.get("/api/overview?range=1h").json()
     all_time = client.get("/api/overview?range=all").json()
     export = client.get("/api/export?range=24h&limit=10").json()
+    download = client.get("/api/export/download?range=24h&limit=10")
 
     assert all_time["totals"]["events"] >= one_hour["totals"]["events"]
     assert export["path"].endswith(".json")
+    assert download.status_code == 200
+    assert download.headers["content-type"].startswith("application/json")
+    assert "attachment" in download.headers["content-disposition"]

@@ -34,6 +34,7 @@ GET /api/overview?range=24h
 GET /api/events?range=24h&limit=30
 GET /api/traces/{trace_id}
 GET /api/export?range=24h&limit=1000
+GET /api/export/download?range=24h&limit=1000
 POST /api/demo/reset
 ```
 
