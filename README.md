@@ -34,7 +34,7 @@ flowchart LR
 - 本地 JSONL + SQLite 事件存储
 - FastAPI 分析接口
 - 静态 Dashboard，无需前端构建
-- 首次启动自动生成样例数据
+- 首次启动自动生成 18 条 trace、百余条事件的样例数据
 - 时间范围筛选：1 小时、24 小时、7 天、全部
 - 样例场景切换：正常代码修复、权限失败排查、工具超时重试、Skill 触发分析
 - Trace 详情时间线
@@ -59,7 +59,7 @@ uvicorn server.main:app --reload --port 9120
 http://127.0.0.1:9120
 ```
 
-应用会自动生成样例 trace。需要重置样例数据时运行：
+应用会自动生成 18 条 trace、百余条事件的样例数据。需要重置样例数据时运行：
 
 ```bash
 python scripts/generate_sample_data.py

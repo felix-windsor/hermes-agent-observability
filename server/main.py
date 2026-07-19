@@ -19,10 +19,52 @@ APP_ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD_DIR = APP_ROOT / "dashboard"
 SCENARIOS = [
     {"id": "all", "label": "全部场景", "description": "展示所有样例 trace", "task_ids": []},
-    {"id": "code_fix", "label": "正常代码修复", "description": "代码修改、测试验证和任务完成链路", "task_ids": ["task-code-fix"]},
-    {"id": "permission", "label": "权限失败排查", "description": "权限错误、修复动作和重试结果", "task_ids": ["task-permission"]},
-    {"id": "timeout", "label": "工具超时重试", "description": "远程请求超时和后续成功重试", "task_ids": ["task-timeout"]},
-    {"id": "skill", "label": "Skill 触发分析", "description": "研究类任务中的 Skill 使用链路", "task_ids": ["task-research"]},
+    {
+        "id": "code_fix",
+        "label": "正常代码修复",
+        "description": "代码修改、测试验证和任务完成链路",
+        "task_ids": [
+            "task-code-auth-refresh",
+            "task-code-cache-bug",
+            "task-code-dashboard-copy",
+            "task-code-flaky-test",
+            "task-code-hook-refactor",
+        ],
+    },
+    {
+        "id": "permission",
+        "label": "权限失败排查",
+        "description": "权限错误、修复动作和重试结果",
+        "task_ids": [
+            "task-permission-dashboard-log",
+            "task-permission-pycache",
+            "task-permission-sqlite",
+            "task-permission-readonly",
+        ],
+    },
+    {
+        "id": "timeout",
+        "label": "工具超时重试",
+        "description": "远程请求超时和后续成功重试",
+        "task_ids": [
+            "task-timeout-langfuse-export",
+            "task-timeout-npm-install",
+            "task-timeout-web-search",
+            "task-timeout-report-export",
+        ],
+    },
+    {
+        "id": "skill",
+        "label": "Skill 触发分析",
+        "description": "研究类任务中的 Skill 使用链路",
+        "task_ids": [
+            "task-skill-research-patterns",
+            "task-skill-readme-polish",
+            "task-skill-architecture",
+            "task-skill-review",
+            "task-skill-demo-script",
+        ],
+    },
 ]
 
 

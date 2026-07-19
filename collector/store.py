@@ -213,82 +213,371 @@ def seed_sample_data(force: bool = False) -> None:
     if force and events_jsonl_path().exists():
         events_jsonl_path().unlink()
 
-    samples = [
-        ("task-code-fix", "code_fix", "正常代码修复", -52, "修复 auth refresh 相关的 pytest 失败", "terminal", "success", 410),
-        ("task-code-fix", "code_fix", "正常代码修复", -51, "修复 auth refresh 相关的 pytest 失败", "read_file", "success", 160),
-        ("task-code-fix", "code_fix", "正常代码修复", -50, "修复 auth refresh 相关的 pytest 失败", "apply_patch", "success", 90),
-        ("task-code-fix", "code_fix", "正常代码修复", -48, "修复 auth refresh 相关的 pytest 失败", "terminal", "success", 1230),
-        ("task-permission", "permission", "权限失败排查", -38, "从 home 目录启动 dashboard", "terminal", "error", 75),
-        ("task-permission", "permission", "权限失败排查", -37, "从 home 目录启动 dashboard", "terminal", "success", 180),
-        ("task-research", "skill", "Skill 触发分析", -24, "总结 Agent 观测机制的常见模式", "web_search", "success", 860),
-        ("task-research", "skill", "Skill 触发分析", -23, "总结 Agent 观测机制的常见模式", "skill_view", "success", 40),
-        ("task-timeout", "timeout", "工具超时重试", -13, "拉取远程 trace 导出文件", "http_fetch", "error", 10000),
-        ("task-timeout", "timeout", "工具超时重试", -12, "拉取远程 trace 导出文件", "http_fetch", "success", 1450),
+    runs = [
+        {
+            "task_id": "task-code-auth-refresh",
+            "scenario": "code_fix",
+            "scenario_label": "正常代码修复",
+            "minute": -455,
+            "user_request": "修复 auth refresh 相关的 pytest 失败",
+            "steps": [
+                _tool("terminal", 410, command="pytest tests/test_auth.py -q"),
+                _tool("read_file", 160, path="agent/auth.py"),
+                _tool("apply_patch", 95, patch="refresh token fallback"),
+                _tool("terminal", 1230, command="pytest tests/test_auth.py -q"),
+            ],
+        },
+        {
+            "task_id": "task-code-cache-bug",
+            "scenario": "code_fix",
+            "scenario_label": "正常代码修复",
+            "minute": -405,
+            "user_request": "定位缓存命中后工具结果没有刷新的问题",
+            "steps": [
+                _tool("search_files", 330, query="tool cache invalidation"),
+                _tool("read_file", 210, path="agent/tool_cache.py"),
+                _tool("apply_patch", 120, patch="invalidate cache after tool error"),
+                _tool("terminal", 980, command="pytest tests/test_tool_cache.py -q"),
+            ],
+        },
+        {
+            "task_id": "task-code-dashboard-copy",
+            "scenario": "code_fix",
+            "scenario_label": "正常代码修复",
+            "minute": -355,
+            "user_request": "把观测看板里的英文按钮改成中文",
+            "steps": [
+                _tool("read_file", 180, path="dashboard/app.js"),
+                _tool("apply_patch", 85, patch="localize dashboard labels"),
+                _tool("terminal", 420, command="node --check dashboard/app.js"),
+            ],
+        },
+        {
+            "task_id": "task-code-flaky-test",
+            "scenario": "code_fix",
+            "scenario_label": "正常代码修复",
+            "minute": -310,
+            "user_request": "处理偶发失败的 dashboard API 测试",
+            "steps": [
+                _tool("terminal", 1450, status="error", command="pytest tests/test_dashboard_api.py -q", error="AssertionError: stale sqlite fixture was reused"),
+                _tool("read_file", 145, path="tests/test_dashboard_api.py"),
+                _tool("apply_patch", 90, patch="force regenerate sample data per test"),
+                _tool("terminal", 760, command="pytest tests/test_dashboard_api.py -q"),
+            ],
+        },
+        {
+            "task_id": "task-code-hook-refactor",
+            "scenario": "code_fix",
+            "scenario_label": "正常代码修复",
+            "minute": -270,
+            "user_request": "重构 Hermes hook 事件归一化逻辑",
+            "steps": [
+                _tool("search_files", 280, query="invoke_hook post_llm_call"),
+                _tool("read_file", 260, path="hermes_cli/plugins.py"),
+                _tool("apply_patch", 140, patch="normalize task_id and trace_id"),
+                _tool("terminal", 1520, command="pytest tests/plugins -q"),
+            ],
+        },
+        {
+            "task_id": "task-permission-dashboard-log",
+            "scenario": "permission",
+            "scenario_label": "权限失败排查",
+            "minute": -235,
+            "user_request": "从 home 目录启动 dashboard",
+            "steps": [
+                _tool("terminal", 75, status="error", command="uvicorn server.main:app", error="Permission denied: /home/felix/.hermes/dashboard.log"),
+                _tool("terminal", 220, command="chown -R felix:felix /home/felix/.hermes/logs"),
+                _tool("terminal", 310, command="uvicorn server.main:app --port 9120"),
+            ],
+        },
+        {
+            "task_id": "task-permission-pycache",
+            "scenario": "permission",
+            "scenario_label": "权限失败排查",
+            "minute": -205,
+            "user_request": "修复 pytest 写 __pycache__ 的权限问题",
+            "steps": [
+                _tool("terminal", 95, status="error", command="pytest -q", error="Permission denied: tests/__pycache__"),
+                _tool("terminal", 180, command="chown -R felix:felix tests"),
+                _tool("terminal", 840, command="pytest -q"),
+            ],
+        },
+        {
+            "task_id": "task-permission-sqlite",
+            "scenario": "permission",
+            "scenario_label": "权限失败排查",
+            "minute": -175,
+            "user_request": "修复观测 SQLite 文件无法写入的问题",
+            "steps": [
+                _tool("terminal", 60, status="error", command="python scripts/generate_sample_data.py", error="Permission denied: data/observability.sqlite"),
+                _tool("terminal", 150, command="mkdir -p data && chown -R felix:felix data"),
+                _tool("terminal", 270, command="python scripts/generate_sample_data.py"),
+            ],
+        },
+        {
+            "task_id": "task-permission-readonly",
+            "scenario": "permission",
+            "scenario_label": "权限失败排查",
+            "minute": -145,
+            "user_request": "解释为什么 root 写出的文件 felix 不能改",
+            "final_status": "error",
+            "steps": [
+                _tool("terminal", 70, status="error", command="git status", error="dubious ownership in repository"),
+                _tool("read_file", 120, path=".git/config"),
+            ],
+        },
+        {
+            "task_id": "task-timeout-langfuse-export",
+            "scenario": "timeout",
+            "scenario_label": "工具超时重试",
+            "minute": -115,
+            "user_request": "拉取远程 trace 导出文件",
+            "steps": [
+                _tool("http_fetch", 10000, status="error", url="https://cloud.langfuse.com/api/public/traces", error="request timed out after 10s"),
+                _tool("http_fetch", 1450, url="https://cloud.langfuse.com/api/public/traces?limit=20"),
+            ],
+        },
+        {
+            "task_id": "task-timeout-npm-install",
+            "scenario": "timeout",
+            "scenario_label": "工具超时重试",
+            "minute": -95,
+            "user_request": "安装前端依赖并处理网络超时",
+            "steps": [
+                _tool("terminal", 30000, status="error", command="npm install", error="network timeout while fetching package metadata"),
+                _tool("terminal", 5200, command="npm install --prefer-offline"),
+                _tool("terminal", 420, command="node --check dashboard/app.js"),
+            ],
+        },
+        {
+            "task_id": "task-timeout-web-search",
+            "scenario": "timeout",
+            "scenario_label": "工具超时重试",
+            "minute": -76,
+            "user_request": "搜索 Agent observability 的行业做法",
+            "steps": [
+                _tool("web_search", 8000, status="error", query="Agent observability trace dashboard", error="search provider timeout"),
+                _tool("web_search", 1220, query="Langfuse OpenTelemetry Agent observability"),
+                _tool("read_file", 190, path="docs/architecture.md"),
+            ],
+        },
+        {
+            "task_id": "task-timeout-report-export",
+            "scenario": "timeout",
+            "scenario_label": "工具超时重试",
+            "minute": -58,
+            "user_request": "导出 24 小时内的观测事件 JSON",
+            "steps": [
+                _tool("http_fetch", 1800, url="/api/export/download?range=24h"),
+                _tool("terminal", 220, command="wc -c exported.json"),
+            ],
+        },
+        {
+            "task_id": "task-skill-research-patterns",
+            "scenario": "skill",
+            "scenario_label": "Skill 触发分析",
+            "minute": -43,
+            "user_request": "总结 Agent 观测机制的常见模式",
+            "steps": [
+                _skill("researcher"),
+                _tool("web_search", 860, query="agent observability traces tools skills"),
+                _tool("read_file", 180, path="README.md"),
+            ],
+        },
+        {
+            "task_id": "task-skill-readme-polish",
+            "scenario": "skill",
+            "scenario_label": "Skill 触发分析",
+            "minute": -34,
+            "user_request": "把 README 改成更适合面试讲解的版本",
+            "steps": [
+                _skill("writer"),
+                _tool("read_file", 130, path="README.md"),
+                _tool("apply_patch", 170, patch="add portfolio explanation"),
+                _tool("terminal", 360, command="pytest -q"),
+            ],
+        },
+        {
+            "task_id": "task-skill-architecture",
+            "scenario": "skill",
+            "scenario_label": "Skill 触发分析",
+            "minute": -26,
+            "user_request": "补一张面试讲解用的架构图",
+            "steps": [
+                _skill("diagrammer"),
+                _tool("read_file", 110, path="README.md"),
+                _tool("apply_patch", 100, patch="add mermaid architecture diagram"),
+            ],
+        },
+        {
+            "task_id": "task-skill-review",
+            "scenario": "skill",
+            "scenario_label": "Skill 触发分析",
+            "minute": -18,
+            "user_request": "检查 dashboard 导出 JSON 的交互是否合理",
+            "steps": [
+                _skill("reviewer"),
+                _tool("search_files", 170, query="/api/export"),
+                _tool("read_file", 150, path="dashboard/app.js"),
+                _tool("apply_patch", 90, patch="switch export button to browser download"),
+                _tool("terminal", 480, command="pytest -q"),
+            ],
+        },
+        {
+            "task_id": "task-skill-demo-script",
+            "scenario": "skill",
+            "scenario_label": "Skill 触发分析",
+            "minute": -10,
+            "user_request": "生成一段一分钟面试 demo 讲解脚本",
+            "steps": [
+                _skill("presenter"),
+                _tool("read_file", 90, path="docs/demo-script.md"),
+                _tool("apply_patch", 110, patch="add short walkthrough"),
+            ],
+        },
     ]
 
-    for task_id, scenario, scenario_label, minute, user_message, tool_name, status, tool_ms in samples:
-        base_payload = {
-            "scenario": scenario,
-            "scenario_label": scenario_label,
-            "user_request": user_message,
-        }
+    for run in runs:
+        _record_sample_trace(**run)
+
+
+def _tool(
+    name: str,
+    duration_ms: int,
+    *,
+    status: str = "success",
+    error: str = "",
+    **metadata: Any,
+) -> dict[str, Any]:
+    return {
+        "kind": "tool",
+        "name": name,
+        "duration_ms": duration_ms,
+        "status": status,
+        "error": error,
+        "metadata": metadata,
+    }
+
+
+def _skill(name: str, *, source: str = "scenario") -> dict[str, Any]:
+    return {"kind": "skill", "name": name, "source": source}
+
+
+def _record_sample_trace(
+    *,
+    task_id: str,
+    scenario: str,
+    scenario_label: str,
+    minute: int,
+    user_request: str,
+    steps: list[dict[str, Any]],
+    final_status: str = "success",
+) -> None:
+    base_payload = {
+        "scenario": scenario,
+        "scenario_label": scenario_label,
+        "user_request": user_request,
+    }
+    current = minute
+    api_call = 1
+
+    def llm_pair(reason: str, duration_ms: int) -> None:
+        nonlocal current, api_call
+        name = f"api_call_{api_call}"
         record_event(
             event_type="llm.requested",
             task_id=task_id,
             session_id=task_id,
             span_type="llm",
-            name="api_call_1",
+            name=name,
             status="started",
             model="gpt-5",
             provider="demo",
-            payload={**base_payload, "user_message": text_summary(user_message), "message_count": 2},
-            created_at=_at(minute),
+            payload={
+                **base_payload,
+                "reason": reason,
+                "user_message": text_summary(user_request),
+                "message_count": 2 + api_call,
+            },
+            created_at=_at(current),
         )
+        current += 1
         record_event(
             event_type="llm.completed",
             task_id=task_id,
             session_id=task_id,
             span_type="llm",
-            name="api_call_1",
+            name=name,
             status="success",
-            duration_ms=2100 + (tool_ms // 3),
+            duration_ms=duration_ms,
             model="gpt-5",
             provider="demo",
-            payload={**base_payload, "finish_reason": "tool_calls"},
-            created_at=_at(minute + 1),
+            payload={**base_payload, "finish_reason": "tool_calls", "reason": reason},
+            created_at=_at(current),
         )
-        if tool_name == "skill_view":
+        current += 1
+        api_call += 1
+
+    llm_pair("plan_next_action", 2100 + len(steps) * 180)
+    has_error = False
+    tool_count = 0
+
+    for step in steps:
+        if step["kind"] == "skill":
             record_event(
                 event_type="skill.used",
                 task_id=task_id,
                 session_id=task_id,
                 span_type="skill",
-                name="researcher",
+                name=step["name"],
                 status="success",
-                payload={**base_payload, "source": "skill_view"},
-                created_at=_at(minute + 2),
+                payload={**base_payload, "source": step.get("source", "scenario")},
+                created_at=_at(current),
             )
+            current += 1
+            continue
+
+        tool_count += 1
+        status = step.get("status", "success")
+        has_error = has_error or status == "error"
         record_event(
             event_type="tool.completed",
             task_id=task_id,
             session_id=task_id,
             span_type="tool",
-            name=tool_name,
+            name=step["name"],
             status=status,
-            duration_ms=tool_ms,
-            payload={**base_payload, "error": _sample_error(tool_name) if status == "error" else "", "ok": status == "success"},
-            created_at=_at(minute + 3),
+            duration_ms=step["duration_ms"],
+            payload={
+                **base_payload,
+                "ok": status == "success",
+                "error": step.get("error") or _sample_error(step["name"]) if status == "error" else "",
+                "metadata": step.get("metadata") or {},
+            },
+            created_at=_at(current),
         )
-        record_event(
-            event_type="task.failed" if status == "error" else "task.completed",
-            task_id=task_id,
-            session_id=task_id,
-            span_type="task",
-            name="agent_task",
-            status="error" if status == "error" else "success",
-            payload={**base_payload, "final_response_chars": 420, "failed": status == "error"},
-            created_at=_at(minute + 4),
-        )
+        current += 1
+        if status == "error":
+            llm_pair("analyze_tool_failure", 1650 + tool_count * 140)
+
+    failed = final_status == "error"
+    record_event(
+        event_type="task.failed" if failed else "task.completed",
+        task_id=task_id,
+        session_id=task_id,
+        span_type="task",
+        name="agent_task",
+        status="error" if failed else "success",
+        duration_ms=None,
+        payload={
+            **base_payload,
+            "failed": failed,
+            "had_intermediate_error": has_error,
+            "tool_count": tool_count,
+            "final_response_chars": 380 + tool_count * 90,
+        },
+        created_at=_at(current),
+    )
 
 
 def _sample_error(tool_name: str) -> str:

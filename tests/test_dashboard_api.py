@@ -72,5 +72,5 @@ def test_scenario_filter_focuses_dashboard(monkeypatch, tmp_path):
     permission = client.get("/api/overview?range=24h&scenario=permission").json()
 
     assert permission["totals"]["events"] < all_data["totals"]["events"]
-    assert permission["totals"]["traces"] == 1
-    assert permission["traces"][0]["task_id"] == "task-permission"
+    assert permission["totals"]["traces"] == 4
+    assert all(row["task_id"].startswith("task-permission-") for row in permission["traces"])
