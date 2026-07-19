@@ -34,7 +34,7 @@ def test_overview_contains_sample_data(monkeypatch, tmp_path):
     assert "intermediate_failure_traces" in data["opportunities"][0]
     assert data["skill_priorities"]
     assert data["skill_priorities"][0]["trace_count"] >= data["skill_priorities"][-1]["trace_count"]
-    assert any(item["id"] == "permission" for item in data["scenarios"])
+    assert any(item["id"] == "tool_failure" for item in data["scenarios"])
     assert any(item["id"] == "task_flow" for item in data["scenarios"])
 
 
@@ -65,15 +65,15 @@ def test_range_filter_and_export(monkeypatch, tmp_path):
 
     one_hour = client.get("/api/overview?range=1h").json()
     all_time = client.get("/api/overview?range=all").json()
-    export = client.get("/api/export?range=24h&scenario=permission&limit=10").json()
-    download = client.get("/api/export/download?range=24h&scenario=permission&limit=10")
+    export = client.get("/api/export?range=24h&scenario=tool_failure&limit=10").json()
+    download = client.get("/api/export/download?range=24h&scenario=tool_failure&limit=10")
 
     assert all_time["totals"]["events"] >= one_hour["totals"]["events"]
     assert export["path"].endswith(".json")
     assert download.status_code == 200
     assert download.headers["content-type"].startswith("application/json")
     assert "attachment" in download.headers["content-disposition"]
-    assert "permission-24h" in download.headers["content-disposition"]
+    assert "tool_failure-24h" in download.headers["content-disposition"]
 
 
 def test_scenario_filter_focuses_dashboard(monkeypatch, tmp_path):
@@ -81,11 +81,11 @@ def test_scenario_filter_focuses_dashboard(monkeypatch, tmp_path):
     client = TestClient(app)
 
     all_data = client.get("/api/overview?range=24h&scenario=all").json()
-    permission = client.get("/api/overview?range=24h&scenario=permission").json()
+    tool_failure = client.get("/api/overview?range=24h&scenario=tool_failure").json()
 
-    assert permission["totals"]["events"] < all_data["totals"]["events"]
-    assert permission["totals"]["traces"] == 4
-    assert all(row["task_id"].startswith("task-permission-") for row in permission["traces"])
+    assert tool_failure["totals"]["events"] < all_data["totals"]["events"]
+    assert tool_failure["totals"]["traces"] == 4
+    assert all(row["task_id"].startswith("task-tool-") for row in tool_failure["traces"])
 
 
 def test_trace_story_detects_recovery_after_tool_failure(monkeypatch, tmp_path):
@@ -109,20 +109,20 @@ def test_trace_story_detects_recovery_after_tool_failure(monkeypatch, tmp_path):
     assert any("重试" in action for action in story["next_actions"])
 
 
-def test_failure_category_exposes_optimization_suggestions(monkeypatch, tmp_path):
+def test_api_failure_category_exposes_optimization_suggestions(monkeypatch, tmp_path):
     app, _store = fresh_app(monkeypatch, tmp_path)
     client = TestClient(app)
-    overview = client.get("/api/overview?range=24h&scenario=permission").json()
+    overview = client.get("/api/overview?range=24h&scenario=tool_failure").json()
 
-    permission_failure = next(
+    api_failure = next(
         row for row in overview["failures"]
-        if row["failure_category"]["code"] == "permission_error"
+        if row["failure_category"]["code"] == "api_error"
     )
-    category = permission_failure["failure_category"]
+    category = api_failure["failure_category"]
 
-    assert category["label"] == "权限问题"
+    assert category["label"] == "接口调用失败"
     assert category["confidence"] > 0.8
-    assert any("Agent" in suggestion or "scope" in suggestion for suggestion in category["suggestions"])
+    assert any("工具入参" in suggestion or "下游接口" in suggestion for suggestion in category["suggestions"])
 
 
 def test_automation_opportunities_rank_current_agent_candidates(monkeypatch, tmp_path):
@@ -161,13 +161,13 @@ def test_skill_refinement_priorities_emphasize_frequency(monkeypatch, tmp_path):
     overview = client.get("/api/overview?range=24h&scenario=all").json()
 
     priorities = overview["skill_priorities"]
-    access_skill = next(item for item in priorities if item["skill"] == "identity-lookup-skill")
+    tool_skill = next(item for item in priorities if item["skill"] == "tool-diagnosis-skill")
 
-    assert access_skill["trace_count"] == 3
-    assert access_skill["department_agent"] == "当前通用 Agent"
-    assert access_skill["intermediate_failure_traces"] > 0
-    assert access_skill["avg_duration_ms"] > 0
-    assert "下钻" in access_skill["recommendation"]
+    assert tool_skill["trace_count"] == 3
+    assert tool_skill["department_agent"] == "当前通用 Agent"
+    assert tool_skill["intermediate_failure_traces"] > 0
+    assert tool_skill["avg_duration_ms"] > 0
+    assert "下钻" in tool_skill["recommendation"]
 
 
 def test_overview_uses_single_agent_scope(monkeypatch, tmp_path):

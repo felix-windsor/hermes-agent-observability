@@ -279,51 +279,51 @@ def seed_sample_data(force: bool = False) -> None:
             ],
         },
         {
-            "task_id": "task-permission-specialized-agent",
-            "scenario": "permission",
-            "scenario_label": "访问权限校验",
+            "task_id": "task-tool-crm-query",
+            "scenario": "tool_failure",
+            "scenario_label": "工具调用失败",
             "minute": -235,
-            "user_request": "员工尝试访问未授权的合同审查专项 Agent",
+            "user_request": "查询客户最近三个月跟进记录并生成摘要",
             "steps": [
-                _tool("policy_check", 75, status="error", subject="employee_042", target_agent="contract-review-agent", error="agent_scope_denied: 当前员工未被授权访问该专项 Agent"),
-                _tool("permission_lookup", 220, subject="employee_042", scope="specialized_agent"),
-                _tool("user_message", 310, message="请通过部门管理员申请合同审查专项 Agent 权限"),
+                _tool("crm_query", 420, status="error", resource="customer_followups", error="invalid_request: 缺少 customer_id"),
+                _tool("argument_rewrite", 160, field="customer_id"),
+                _tool("crm_query", 680, resource="customer_followups", rows=12),
             ],
         },
         {
-            "task_id": "task-permission-temporary-access",
-            "scenario": "permission",
-            "scenario_label": "访问权限校验",
+            "task_id": "task-tool-kb-search",
+            "scenario": "tool_failure",
+            "scenario_label": "工具调用失败",
             "minute": -205,
-            "user_request": "为跨部门协作成员申请临时访问当前通用 Agent",
+            "user_request": "检索售前方案知识库并整理常见异议",
             "steps": [
-                _tool("policy_check", 95, status="error", subject="employee_087", target_agent="current-general-agent", error="policy_denied: 临时访问未审批"),
-                _tool("approval_query", 180, request_id="access_request_1007"),
-                _tool("permission_grant", 840, subject="employee_087", ttl_hours=72),
+                _tool("kb_search", 900, status="error", query="售前异议处理", error="empty_result: query 过窄未召回文档"),
+                _tool("query_expand", 210, query="售前 竞品 对比 客户异议"),
+                _tool("kb_search", 1180, query="售前 竞品 对比 客户异议", hits=8),
             ],
         },
         {
-            "task_id": "task-permission-agent-scope",
-            "scenario": "permission",
-            "scenario_label": "访问权限校验",
+            "task_id": "task-tool-report-api",
+            "scenario": "tool_failure",
+            "scenario_label": "工具调用失败",
             "minute": -175,
-            "user_request": "排查员工能访问通用 Agent 但不能调用报表专项 Agent 的原因",
+            "user_request": "拉取本周使用报表并生成趋势说明",
             "steps": [
-                _tool("policy_check", 60, status="error", subject="employee_031", target_agent="report-export-agent", error="agent_scope_denied: 通用 Agent 权限不包含该专项 Agent"),
-                _tool("permission_lookup", 150, subject="employee_031", scope="general_agent"),
-                _tool("user_message", 270, message="已提示用户申请报表专项 Agent 访问权"),
+                _tool("report_api", 1400, status="error", endpoint="/weekly-usage", error="upstream_500: 报表服务临时错误"),
+                _tool("report_api", 2100, endpoint="/weekly-usage?retry=1", rows=32),
+                _tool("summary_writer", 360, format="trend"),
             ],
         },
         {
-            "task_id": "task-permission-offboarding",
-            "scenario": "permission",
-            "scenario_label": "访问权限校验",
+            "task_id": "task-tool-workflow-api",
+            "scenario": "tool_failure",
+            "scenario_label": "工具调用失败",
             "minute": -145,
-            "user_request": "复核离岗员工是否仍保留专项 Agent 权限",
+            "user_request": "创建审批流程并同步到流程系统",
             "final_status": "error",
             "steps": [
-                _tool("permission_lookup", 70, status="error", subject="employee_014", target_agent="pricing-agent", error="policy_denied: 员工状态为 inactive，权限应回收"),
-                _tool("audit_log_query", 120, subject="employee_014"),
+                _tool("workflow_api", 760, status="error", endpoint="/approval/create", error="schema_mismatch: approver_list must be array"),
+                _tool("payload_validate", 180, field="approver_list"),
             ],
         },
         {
@@ -583,8 +583,8 @@ def _record_sample_trace(
 
 
 def _sample_error(tool_name: str) -> str:
-    if tool_name in {"policy_check", "permission_lookup"}:
-        return "agent_scope_denied: 当前用户未被授权访问目标 Agent"
+    if tool_name in {"crm_query", "kb_search", "report_api", "workflow_api"}:
+        return "api returned error，业务工具调用失败"
     if tool_name == "terminal":
         return "tool execution failed，命令执行失败"
     if tool_name == "http_fetch":
@@ -634,37 +634,37 @@ def _business_context(task_id: str, scenario: str) -> dict[str, Any]:
             "candidate_skill": "agent-hook-skill",
             "agent_candidate": "Agent 工程助手",
         },
-        "task-permission-specialized-agent": {
+        "task-tool-crm-query": {
             "department": "current",
             "department_label": "当前业务域",
-            "workflow": "agent_access_control",
-            "workflow_label": "Agent 访问控制",
-            "candidate_skill": "access-control-skill",
-            "agent_candidate": "权限治理 Agent",
+            "workflow": "crm_followup_summary",
+            "workflow_label": "客户跟进摘要",
+            "candidate_skill": "tool-diagnosis-skill",
+            "agent_candidate": "客户跟进 Agent",
         },
-        "task-permission-temporary-access": {
+        "task-tool-kb-search": {
             "department": "current",
             "department_label": "当前业务域",
-            "workflow": "temporary_access_approval",
-            "workflow_label": "临时访问审批",
-            "candidate_skill": "access-approval-skill",
-            "agent_candidate": "临时授权 Agent",
+            "workflow": "knowledge_retrieval_rewrite",
+            "workflow_label": "知识库检索改写",
+            "candidate_skill": "query-rewrite-skill",
+            "agent_candidate": "知识库检索 Agent",
         },
-        "task-permission-agent-scope": {
+        "task-tool-report-api": {
             "department": "current",
             "department_label": "当前业务域",
-            "workflow": "specialized_agent_scope",
-            "workflow_label": "专项 Agent 授权范围",
-            "candidate_skill": "access-control-skill",
-            "agent_candidate": "权限治理 Agent",
+            "workflow": "report_api_recovery",
+            "workflow_label": "报表接口恢复",
+            "candidate_skill": "api-retry-skill",
+            "agent_candidate": "报表分析 Agent",
         },
-        "task-permission-offboarding": {
+        "task-tool-workflow-api": {
             "department": "current",
             "department_label": "当前业务域",
-            "workflow": "offboarding_access_review",
-            "workflow_label": "离岗权限回收",
-            "candidate_skill": "access-audit-skill",
-            "agent_candidate": "权限审计 Agent",
+            "workflow": "workflow_payload_validation",
+            "workflow_label": "流程入参校验",
+            "candidate_skill": "tool-diagnosis-skill",
+            "agent_candidate": "流程创建 Agent",
         },
         "task-timeout-langfuse-export": {
             "department": "current",
@@ -763,9 +763,9 @@ def _skill_bundle_for(candidate_skill: str) -> list[str]:
         "code-debug-skill": ["code-debug-skill", "code-search-skill", "patch-apply-skill", "test-runner-skill"],
         "dashboard-copy-skill": ["dashboard-copy-skill", "ui-copy-skill", "patch-apply-skill"],
         "agent-hook-skill": ["agent-hook-skill", "code-search-skill", "architecture-review-skill", "test-runner-skill"],
-        "access-control-skill": ["access-control-skill", "identity-lookup-skill", "agent-scope-check-skill"],
-        "access-approval-skill": ["access-approval-skill", "policy-check-skill", "permission-grant-skill"],
-        "access-audit-skill": ["access-audit-skill", "identity-lookup-skill", "permission-revoke-skill"],
+        "tool-diagnosis-skill": ["tool-diagnosis-skill", "argument-validation-skill", "api-error-classifier-skill"],
+        "query-rewrite-skill": ["query-rewrite-skill", "knowledge-retrieval-skill", "summary-writer-skill"],
+        "api-retry-skill": ["api-retry-skill", "tool-diagnosis-skill", "api-diagnosis-skill", "retry-policy-skill"],
         "remote-retry-skill": ["remote-retry-skill", "api-diagnosis-skill", "retry-policy-skill"],
         "dependency-recovery-skill": ["dependency-recovery-skill", "shell-diagnosis-skill", "cache-policy-skill"],
         "research-synthesis-skill": ["research-synthesis-skill", "web-search-skill", "source-review-skill", "summary-writer-skill"],

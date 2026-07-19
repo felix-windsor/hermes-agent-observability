@@ -25,7 +25,7 @@
   const defaultScenarios = [
     { id: "all", label: "全部场景", description: "展示所有样例 trace" },
     { id: "task_flow", label: "任务处理链路", description: "用户请求、工具执行和最终结果链路" },
-    { id: "permission", label: "访问权限校验", description: "员工访问通用 Agent 或专项 Agent 的权限控制" },
+    { id: "tool_failure", label: "工具调用失败", description: "业务接口、知识库和流程系统调用失败后的恢复链路" },
     { id: "timeout", label: "工具超时重试", description: "远程请求超时和后续成功重试" },
     { id: "skill", label: "Skill 触发分析", description: "研究类任务中的 Skill 使用链路" },
   ];
@@ -365,7 +365,7 @@
       <header class="hero">
         <div>
           <h1>当前通用 Agent 观测看板</h1>
-          <p class="subtitle">单 Agent 视角：展示 trace 时间线、工具调用、Skill 高频口径、访问权限失败、失败分类和专项化下钻判断。</p>
+          <p class="subtitle">单 Agent 视角：展示 trace 时间线、工具调用、Skill 高频口径、工具失败分类和专项化下钻判断。</p>
           <p class="data-note">当前数据为脱敏模拟样例，不包含真实组织、用户、内部系统表名或原始业务数据。</p>
         </div>
         <div class="actions">

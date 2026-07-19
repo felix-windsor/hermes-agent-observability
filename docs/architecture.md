@@ -43,7 +43,7 @@ POST /api/sample/reset
 ```text
 all
 task_flow
-permission
+tool_failure
 timeout
 skill
 ```
@@ -51,7 +51,7 @@ skill
 失败分类第一版使用规则判断，保持结果稳定、容易解释：
 
 ```text
-权限问题
+接口调用失败
 认证/API Key 问题
 限流
 超时

@@ -32,14 +32,14 @@ SCENARIOS = [
         ],
     },
     {
-        "id": "permission",
-        "label": "访问权限校验",
-        "description": "员工访问通用 Agent 或专项 Agent 的权限控制",
+        "id": "tool_failure",
+        "label": "工具调用失败",
+        "description": "业务接口、知识库和流程系统调用失败后的恢复链路",
         "task_ids": [
-            "task-permission-specialized-agent",
-            "task-permission-temporary-access",
-            "task-permission-agent-scope",
-            "task-permission-offboarding",
+            "task-tool-crm-query",
+            "task-tool-kb-search",
+            "task-tool-report-api",
+            "task-tool-workflow-api",
         ],
     },
     {
@@ -180,14 +180,14 @@ def _flatten_text(value: Any) -> str:
 
 FAILURE_KNOWLEDGE: list[dict[str, Any]] = [
     {
-        "code": "permission_error",
-        "label": "权限问题",
-        "confidence": 0.92,
-        "patterns": ("permission denied", "eacces", "operation not permitted", "forbidden", "agent_scope_denied", "policy_denied"),
+        "code": "api_error",
+        "label": "接口调用失败",
+        "confidence": 0.84,
+        "patterns": ("invalid_request", "schema_mismatch", "empty_result", "upstream_500", "bad gateway", "api returned error"),
         "suggestions": [
-            "检查用户身份、所属部门和目标 Agent 的 scope 是否匹配。",
-            "区分通用 Agent 访问权和专项 Agent 访问权，专项能力需要单独授权。",
-            "把权限拒绝记录成结构化错误码，例如 `agent_scope_denied` 或 `policy_denied`。",
+            "给工具入参增加结构化校验，提前发现缺失字段或格式错误。",
+            "记录下游接口错误码、请求类型和脱敏资源 ID，方便定位是否集中在某个系统。",
+            "对可恢复的接口错误增加重试、降级或用户可读的补充信息提示。",
         ],
     },
     {
@@ -391,9 +391,9 @@ def _skill_bundle_for(candidate_skill: str) -> list[str]:
         "code-debug-skill": ["code-debug-skill", "code-search-skill", "patch-apply-skill", "test-runner-skill"],
         "dashboard-copy-skill": ["dashboard-copy-skill", "ui-copy-skill", "patch-apply-skill"],
         "agent-hook-skill": ["agent-hook-skill", "code-search-skill", "architecture-review-skill", "test-runner-skill"],
-        "access-control-skill": ["access-control-skill", "identity-lookup-skill", "agent-scope-check-skill"],
-        "access-approval-skill": ["access-approval-skill", "policy-check-skill", "permission-grant-skill"],
-        "access-audit-skill": ["access-audit-skill", "identity-lookup-skill", "permission-revoke-skill"],
+        "tool-diagnosis-skill": ["tool-diagnosis-skill", "argument-validation-skill", "api-error-classifier-skill"],
+        "query-rewrite-skill": ["query-rewrite-skill", "knowledge-retrieval-skill", "summary-writer-skill"],
+        "api-retry-skill": ["api-retry-skill", "tool-diagnosis-skill", "api-diagnosis-skill", "retry-policy-skill"],
         "remote-retry-skill": ["remote-retry-skill", "api-diagnosis-skill", "retry-policy-skill"],
         "dependency-recovery-skill": ["dependency-recovery-skill", "shell-diagnosis-skill", "cache-policy-skill"],
         "research-synthesis-skill": ["research-synthesis-skill", "web-search-skill", "source-review-skill", "summary-writer-skill"],
@@ -412,8 +412,8 @@ def _business_context(row: dict[str, Any]) -> dict[str, Any]:
     scenario = str(payload.get("scenario") or "")
     if task_id.startswith("task-code"):
         fallback = ("current", "当前业务域", "task_assistance", "任务处理辅助", "task-diagnosis-skill", "任务处理 Agent")
-    elif task_id.startswith("task-permission"):
-        fallback = ("current", "当前业务域", "agent_access_control", "Agent 访问控制", "access-control-skill", "权限治理 Agent")
+    elif task_id.startswith("task-tool"):
+        fallback = ("current", "当前业务域", "tool_failure_recovery", "工具调用失败恢复", "tool-diagnosis-skill", "工具调用诊断 Agent")
     elif task_id.startswith("task-timeout"):
         fallback = ("current", "当前业务域", "remote_recovery", "远程接口恢复", "remote-retry-skill", "远程接口巡检 Agent")
     elif task_id.startswith("task-skill"):
